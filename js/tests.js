@@ -8,6 +8,7 @@ import * as dates from './dates.js';
 import * as schema from './schema.js';
 import * as stats from './stats.js';
 import * as storage from './storage.js';
+import * as weeks from './weeks.js';
 
 const TEST_KEY = 'habitTracker.test';
 
@@ -434,6 +435,98 @@ test('isActiveDay は ○ と △ だけを有効日とする', () => {
 test('判定ロジックは不正な日付を例外にする', async () => {
   await assertThrows(() => stats.currentStreak([], { started_on: '2026-02-30' }), '不正な started_on');
   await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');
+});
+
+// --- weeks（週まとめ） --------------------------------------------------
+
+test('weekCount は暦日で 7 日ずつ区切る', () => {
+  assertEqual(weeks.weekCount(START, day(1)), 1, '開始日当日');
+  assertEqual(weeks.weekCount(START, day(7)), 1, '7 日目はまだ Week 1');
+  assertEqual(weeks.weekCount(START, day(8)), 2, '8 日目から Week 2');
+  assertEqual(weeks.weekCount(START, day(14)), 2, '14 日目はまだ Week 2');
+  assertEqual(weeks.weekCount(START, day(15)), 3, '15 日目から Week 3');
+  assertEqual(weeks.weekCount(START, dates.addDays(START, -1)), 0, '開始日より前は 0');
+});
+
+test('Week 1 は 1〜7 日目、Week 2 は 8〜14 日目', () => {
+  const list = weeks.buildWeeks([], { started_on: START, today: day(14) });
+  assertEqual(list.length, 2, '週の数');
+  assertEqual([list[0].number, list[0].start, list[0].end], [1, day(1), day(7)], 'Week 1 の範囲');
+  assertEqual([list[1].number, list[1].start, list[1].end], [2, day(8), day(14)], 'Week 2 の範囲');
+});
+
+test('週は必ず 7 日分の枠を持ち、日付が連続する', () => {
+  const list = weeks.buildWeeks(logsFrom('○'), { started_on: START, today: day(20) });
+  assertEqual(list.length, 3, '週の数');
+  list.forEach((week) => {
+    assertEqual(week.days.length, 7, `Week ${week.number} の枠の数`);
+    const expected = [0, 1, 2, 3, 4, 5, 6].map((offset) => dates.addDays(week.start, offset));
+    assertEqual(week.days.map((d) => d.date), expected, `Week ${week.number} の日付`);
+  });
+});
+
+test('未記入の日は log が null になり、× とは区別される', () => {
+  const [week] = weeks.buildWeeks(logsFrom('○_×'), { started_on: START, today: day(3) });
+  assertEqual(week.days[0].log.rating, schema.RATING.DONE, '1 日目は ○');
+  assertEqual(week.days[1].log, null, '2 日目は未記入');
+  assertEqual(week.days[2].log.rating, schema.RATING.SKIP, '3 日目は ×');
+});
+
+test('1 件もログが無い週も空のまま出て、週番号が詰まらない', () => {
+  const logs = [
+    makeLog({ id: 'w1', date: day(1), rating: schema.RATING.DONE }),
+    makeLog({ id: 'w3', date: day(15), rating: schema.RATING.DONE }),
+  ];
+  const list = weeks.buildWeeks(logs, { started_on: START, today: day(21) });
+
+  assertEqual(list.map((week) => week.number), [1, 2, 3], '週番号は詰まらない');
+  assertEqual(list[1].days.filter((d) => d.log !== null).length, 0, 'Week 2 は 1 件も無い');
+  assertEqual(list[1].days.length, 7, '空の週も 7 枠');
+});
+
+test('まだ来ていない日には future が付く', () => {
+  const [week] = weeks.buildWeeks([], { started_on: START, today: day(3) });
+  assertEqual(
+    week.days.map((d) => d.future),
+    [false, false, false, true, true, true, true],
+    'today より後だけ true になるはず',
+  );
+});
+
+test('started_on より前のログはどの週にも入らない', () => {
+  const before = makeLog({ id: 'lbefore', date: dates.addDays(START, -1), rating: schema.RATING.DONE });
+  const list = weeks.buildWeeks([before, ...logsFrom('○')], { started_on: START, today: day(7) });
+  const recorded = list[0].days.filter((d) => d.log !== null).map((d) => d.date);
+  assertEqual(recorded, [day(1)], '開始日より前の記録は現れない');
+});
+
+test('ログの並び順が日付順でなくても正しい日に入る', () => {
+  const list = weeks.buildWeeks(logsFrom('○△×○○○○○').reverse(), { started_on: START, today: day(8) });
+  assertEqual(
+    list[0].days.map((d) => d.log?.rating ?? null),
+    [2, 1, 0, 2, 2, 2, 2],
+    'Week 1 の並び',
+  );
+  assertEqual(list[1].days[0].log.rating, schema.RATING.DONE, 'Week 2 の 1 日目');
+  assertEqual(list[1].days[1].log, null, 'Week 2 の 2 日目は未記入');
+});
+
+test('buildWeek は指定した週だけを組み立てる', () => {
+  const week = weeks.buildWeek(logsFrom('○△×○○○○○'), { started_on: START, number: 2, today: day(8) });
+  assertEqual([week.number, week.start, week.end], [2, day(8), day(14)], 'Week 2 の範囲');
+  assertEqual(week.days[0].log.rating, schema.RATING.DONE, '8 日目');
+  assertEqual(week.days[1].log, null, '9 日目は未記入');
+});
+
+test('today が started_on より前なら週は無い', () => {
+  const list = weeks.buildWeeks(logsFrom('○'), { started_on: START, today: dates.addDays(START, -1) });
+  assertEqual(list, [], '空配列になるはず');
+});
+
+test('週まとめは不正な引数を例外にする', async () => {
+  await assertThrows(() => weeks.weekCount('2026-02-30', START), '不正な started_on');
+  await assertThrows(() => weeks.buildWeek([], { started_on: START, number: 0, today: START }), '週番号 0');
+  await assertThrows(() => weeks.buildWeek([], { started_on: START, number: 1.5, today: START }), '整数でない週番号');
 });
 
 // --- export（エクスポート） --------------------------------------------
