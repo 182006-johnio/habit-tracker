@@ -4,6 +4,7 @@
 
 import * as dates from './dates.js';
 import * as schema from './schema.js';
+import * as stats from './stats.js';
 import * as storage from './storage.js';
 
 const TEST_KEY = 'habitTracker.test';
@@ -56,6 +57,24 @@ function makeLog(overrides = {}) {
 
 function makeHabit(overrides = {}) {
   return { id: 'h1', name: '読書', started_on: '2026-08-01', archived: false, order: 0, ...overrides };
+}
+
+// 判定ロジック用。'○△×_' を並べた文字列を、開始日から 1 日ずつのログにする。
+// '_' は未記入なのでログを作らない。
+const START = '2026-08-01';
+const MARKS = { '○': schema.RATING.DONE, '△': schema.RATING.PARTIAL, '×': schema.RATING.SKIP };
+
+function day(n) {
+  return dates.addDays(START, n - 1); // day(1) が開始日
+}
+
+function logsFrom(pattern) {
+  const logs = [];
+  [...pattern].forEach((mark, index) => {
+    if (mark === '_') return;
+    logs.push(makeLog({ id: `l${index}`, date: day(index + 1), rating: MARKS[mark] }));
+  });
+  return logs;
 }
 
 // --- dates ------------------------------------------------------------
@@ -324,6 +343,83 @@ test('検証に通らない保存データも上書きしない', async () => {
   await assertThrows(() => storage.init({ key: TEST_KEY }), '不正なデータで init');
   assertEqual(localStorage.getItem(TEST_KEY), invalid, '不正なデータが消されてはいけない');
   localStorage.removeItem(TEST_KEY);
+});
+
+// --- stats（判定ロジック） ---------------------------------------------
+
+function assertStats(logs, today, streak, setbacks) {
+  const actual = stats.computeStats(logs, { started_on: START, today });
+  assertEqual([actual.streak, actual.setbacks], [streak, setbacks], '[連続日数, 挫折回数]');
+}
+
+// CLAUDE.md「テスト観点」の 6 ケース。
+test('観点1: 初日に ○ → 連続 1 / 挫折 0', () => {
+  assertStats(logsFrom('○'), day(1), 1, 0);
+});
+
+test('観点2: ○ ○ ○ → 連続 3 / 挫折 0', () => {
+  assertStats(logsFrom('○○○'), day(3), 3, 0);
+});
+
+test('観点3: ○ ○ × ○ → 連続 1 / 挫折 1', () => {
+  assertStats(logsFrom('○○×○'), day(4), 1, 1);
+});
+
+test('観点4: ○ ○ (未記録) ○ → 連続 1 / 挫折 1', () => {
+  assertStats(logsFrom('○○_○'), day(4), 1, 1);
+});
+
+test('観点5: ○ △ ○ → 連続 3 / 挫折 0', () => {
+  assertStats(logsFrom('○△○'), day(3), 3, 0);
+});
+
+test('観点6: 3日間何もせず今日開いた → 連続 0 / 挫折は変わらず', () => {
+  assertStats(logsFrom('○○○'), day(6), 0, 0);
+  // 次に ○ を付けた瞬間に挫折 +1。
+  assertStats(logsFrom('○○○__○'), day(6), 1, 1);
+});
+
+// 追加の観点。
+test('昨日まで連続していて今日が未記入なら、連続は途切れない', () => {
+  assertStats(logsFrom('○○○'), day(4), 3, 0);
+});
+
+test('今日に × を付けたら連続は 0 になる', () => {
+  assertStats(logsFrom('○○○×'), day(4), 0, 0);
+});
+
+test('started_on より前のログは判定に使わない', () => {
+  const before = makeLog({ id: 'lbefore', date: dates.addDays(START, -1), rating: schema.RATING.DONE });
+  assertStats([before, ...logsFrom('○')], day(1), 1, 0);
+});
+
+test('today より後のログは判定に使わない', () => {
+  const future = makeLog({ id: 'lfuture', date: day(10), rating: schema.RATING.DONE });
+  assertStats([...logsFrom('○○○'), future], day(3), 3, 0);
+});
+
+test('2 回復帰したら挫折は 2', () => {
+  assertStats(logsFrom('○×○×○'), day(5), 1, 2);
+});
+
+test('ログが 1 件も無ければ 0 / 0', () => {
+  assertStats([], day(5), 0, 0);
+});
+
+test('ログの並び順が日付順でなくても結果は変わらない', () => {
+  assertStats(logsFrom('○○×○').reverse(), day(4), 1, 1);
+});
+
+test('isActiveDay は ○ と △ だけを有効日とする', () => {
+  assert(stats.isActiveDay(schema.RATING.DONE), '○ は有効日');
+  assert(stats.isActiveDay(schema.RATING.PARTIAL), '△ は有効日');
+  assert(!stats.isActiveDay(schema.RATING.SKIP), '× は有効日ではない');
+  assert(!stats.isActiveDay(undefined), '未記入は有効日ではない');
+});
+
+test('判定ロジックは不正な日付を例外にする', async () => {
+  await assertThrows(() => stats.currentStreak([], { started_on: '2026-02-30' }), '不正な started_on');
+  await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');
 });
 
 // --- 実行 -------------------------------------------------------------
