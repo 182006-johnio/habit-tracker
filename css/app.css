@@ -70,6 +70,31 @@ body {
   color: var(--fg);
 }
 
+.backup-button {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.backup-button:active {
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
+#export-status {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+#export-status.error {
+  color: var(--danger);
+}
+
 /* --- 習慣カード --- */
 
 .card-list {

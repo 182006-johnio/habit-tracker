@@ -7,6 +7,7 @@
 // 無いが、ハッシュで履歴が積まれれば iOS の戻るスワイプが効く。
 
 import * as storage from './storage.js';
+import { backupButton } from './ui/backup.js';
 import { renderHome } from './ui/home.js';
 import { renderWeek } from './ui/week.js';
 
@@ -15,6 +16,7 @@ const app = document.getElementById('app');
 const screen = document.getElementById('screen');
 const title = document.getElementById('screen-title');
 const nav = document.getElementById('header-nav');
+const actions = document.getElementById('header-actions');
 
 async function start() {
   boot.dataset.started = '1'; // index.html の「起動できたか」の見張りに知らせる
@@ -45,6 +47,7 @@ async function render() {
   const route = parseRoute(location.hash);
   screen.replaceChildren();
   nav.replaceChildren();
+  actions.replaceChildren();
 
   if (route.name === 'week') {
     const habit = await storage.getHabit(route.habitId);
@@ -66,6 +69,7 @@ async function render() {
   }
 
   title.textContent = '習慣化トラッカー';
+  actions.append(backupButton());
   await renderHome(screen);
 }
 

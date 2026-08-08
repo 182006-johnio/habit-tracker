@@ -706,32 +706,6 @@ async function run() {
   summary.className = failed === 0 ? 'pass' : 'fail';
 }
 
-// share() はユーザー操作の直後にしか呼べないので、自動テストからは実行できない。
-// 経路そのものを試すためのボタン。保存済みのデータには触れず、サンプルを書き出す。
-function setupManualExport() {
-  const button = document.getElementById('export-sample');
-  const result = document.getElementById('export-result');
-
-  button.addEventListener('click', async () => {
-    result.className = '';
-    result.textContent = '書き出し中…';
-    try {
-      // data を渡すので storage を読まない。await を挟まずに share() まで届くため、
-      // クリックの操作起点も失われない。
-      const outcome = await backup.exportBackup({ data: sampleBackup() });
-      result.className = 'pass';
-      result.textContent = outcome.cancelled
-        ? `キャンセルされました（経路: ${outcome.method}）`
-        : `${outcome.method} で ${outcome.filename} を書き出しました`;
-    } catch (error) {
-      result.className = 'fail';
-      result.textContent = `失敗しました: ${error.name}: ${error.message}`;
-    }
-  });
-}
-
-setupManualExport();
-
 run().catch((error) => {
   const summary = document.getElementById('summary');
   summary.className = 'fail';
