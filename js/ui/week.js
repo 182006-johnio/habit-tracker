@@ -6,6 +6,7 @@
 import { formatDayLabel, formatMonthDay, todayISO } from '../dates.js';
 import * as storage from '../storage.js';
 import { buildWeeks } from '../weeks.js';
+import { buildGrid, buildLegend } from './grid.js';
 import { markFor } from './marks.js';
 import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
 
@@ -25,6 +26,9 @@ export async function renderWeek(root, habit) {
     return;
   }
 
+  const grid = buildGrid(weeks, logs, { started_on: habit.started_on, today });
+  root.append(grid, buildLegend());
+
   const list = document.createElement('div');
   list.className = 'week-list';
 
@@ -34,6 +38,9 @@ export async function renderWeek(root, habit) {
     list.append(weekRow(habit, week, weeks.length, today));
   }
   root.append(list);
+
+  // 初期表示は右端（最新）。DOM に入ってからでないと幅が決まらない。
+  grid.scrollLeft = grid.scrollWidth;
 }
 
 function weekRow(habit, week, weekCount, today) {

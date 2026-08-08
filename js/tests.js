@@ -465,6 +465,37 @@ test('isActiveDay は ○ と △ だけを有効日とする', () => {
   assert(!stats.isActiveDay(undefined), '未記入は有効日ではない');
 });
 
+test('classifyLogs は連続・復帰・× を見分ける', () => {
+  const kinds = stats.classifyLogs(logsFrom('○○×○_△○'), { started_on: START, today: day(7) });
+  assertEqual(
+    [1, 2, 3, 4, 5, 6, 7].map((n) => kinds.get(day(n)) ?? 'none'),
+    ['streak', 'streak', 'skip', 'comeback', 'none', 'comeback', 'streak'],
+    '日ごとの分類',
+  );
+});
+
+test('comeback の数は挫折回数と一致する', () => {
+  for (const pattern of ['○○×○_△○', '○×○×○', '○○○', '_○', '×××']) {
+    const logs = logsFrom(pattern);
+    const today = day(pattern.length);
+    const kinds = stats.classifyLogs(logs, { started_on: START, today });
+    const comebacks = [...kinds.values()].filter((kind) => kind === 'comeback').length;
+    assertEqual(comebacks, stats.setbackCount(logs, { started_on: START, today }), `パターン ${pattern}`);
+  }
+});
+
+test('最初の有効日は開始日より後でも復帰にしない', () => {
+  const kinds = stats.classifyLogs(logsFrom('__○'), { started_on: START, today: day(3) });
+  assertEqual(kinds.get(day(3)), 'streak', '最初の有効日は連続扱い');
+});
+
+test('classifyLogs は範囲外のログを含めない', () => {
+  const before = makeLog({ id: 'lb', date: dates.addDays(START, -1), rating: schema.RATING.DONE });
+  const future = makeLog({ id: 'lf', date: day(10), rating: schema.RATING.DONE });
+  const kinds = stats.classifyLogs([before, ...logsFrom('○'), future], { started_on: START, today: day(3) });
+  assertEqual([...kinds.keys()], [day(1)], '範囲内の日だけが入る');
+});
+
 test('判定ロジックは不正な日付を例外にする', async () => {
   await assertThrows(() => stats.currentStreak([], { started_on: '2026-02-30' }), '不正な started_on');
   await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');

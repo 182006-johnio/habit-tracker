@@ -51,6 +51,31 @@ export function setbackCount(logs, options) {
   return count;
 }
 
+// 日ごとの分類。グリッド表示の色分けに使う。ログがある日だけを返し、
+// 地図に無い日は未記入。
+//
+// 緑（streak）と紫（comeback）の判別には前の有効日を見る必要があり、週をまたぐので
+// 週の中だけでは決まらない。数え方は setbackCount とまったく同じにしてあるので、
+// comeback の数がそのまま挫折回数と一致する。
+export function classifyLogs(logs, options) {
+  const { started_on, today } = normalizeOptions(options);
+  const kinds = new Map();
+
+  for (const log of logs) {
+    if (log.date < started_on || log.date > today) continue;
+    if (!isActiveDay(log.rating)) kinds.set(log.date, 'skip');
+  }
+
+  // 先頭の有効日は復帰ではないので連続扱い。以降は前の有効日との間隔で決める。
+  const dates = activeDates(logs, started_on, today);
+  dates.forEach((date, index) => {
+    const comeback = index > 0 && diffDays(dates[index - 1], date) > 1;
+    kinds.set(date, comeback ? 'comeback' : 'streak');
+  });
+
+  return kinds;
+}
+
 export function computeStats(logs, options) {
   const { started_on, today } = normalizeOptions(options);
   return {

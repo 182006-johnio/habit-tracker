@@ -251,6 +251,57 @@ body {
   color: var(--fg);
 }
 
+/* --- グリッド表示 --- */
+
+.grid-scroller {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.grid {
+  display: flex;
+  gap: 3px;
+  width: max-content;
+}
+
+.grid-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cell {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  /* 未記入とまだ来ていない日は背景と同化させる。枠線も付けない。 */
+  background: transparent;
+}
+
+.cell-streak { background: var(--streak); }
+.cell-comeback { background: var(--setback); }
+.cell-skip { background: var(--skip); }
+
+/* 種類が色相、達成度が濃さ。△ は同じ色の薄い版。 */
+.cell-partial { opacity: 0.45; }
+
+.grid-legend {
+  display: flex;
+  gap: 0.875rem;
+  margin-bottom: 1.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 /* --- 週まとめ --- */
 
 .week-list {
