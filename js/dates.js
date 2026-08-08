@@ -65,3 +65,11 @@ export function diffDays(from, to) {
 export function nowTimestamp() {
   return new Date().toISOString();
 }
+
+// recorded_at を画面表示用のローカル表記にする（例: 8月8日 21:34）。
+// 保存は UTC、表示は端末のローカルタイム。
+export function formatTimestamp(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}

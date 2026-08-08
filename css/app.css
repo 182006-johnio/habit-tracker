@@ -52,7 +52,7 @@ body {
   flex: 1;
   margin: 0;
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 #header-nav:empty,
@@ -144,6 +144,109 @@ body {
 .mark-partial { color: var(--streak); opacity: 0.55; }
 .mark-skip { color: var(--skip); }
 .mark-none { color: var(--muted); }
+
+/* --- 開いたカードの中身 --- */
+
+.card-body {
+  padding: 0 0.875rem 0.875rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.875rem;
+}
+
+.ratings {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.rating {
+  flex: 1;
+  padding: 0.6rem 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.25rem;
+}
+
+.rating[data-rating='2'].selected {
+  border-color: var(--streak);
+  color: var(--streak);
+}
+
+.rating[data-rating='1'].selected {
+  border-color: var(--streak);
+  color: var(--streak);
+  opacity: 0.7;
+}
+
+.rating[data-rating='0'].selected {
+  border-color: var(--skip);
+  color: var(--skip);
+}
+
+.recorded-at {
+  margin: 0.5rem 0 0.875rem;
+  font-size: 0.8125rem;
+}
+
+.recorded-at.muted {
+  color: var(--muted);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.field-name {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  /* 16px を下回ると iOS が入力欄にズームする */
+  font: inherit;
+  resize: vertical;
+}
+
+.field:disabled {
+  opacity: 0.45;
+}
+
+.saved-note {
+  margin: 0 0 0.5rem;
+  color: var(--streak);
+  font-size: 0.8125rem;
+}
+
+.week-link {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.week-link:active {
+  color: var(--fg);
+}
+
+.danger {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+#confirm-message {
+  margin: 0 0 0.75rem;
+}
 
 .add-habit {
   width: 100%;

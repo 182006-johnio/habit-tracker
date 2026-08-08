@@ -65,7 +65,7 @@ async function render() {
     history.replaceState(null, '', location.pathname + location.search);
   }
 
-  title.textContent = '習慣';
+  title.textContent = '習慣化トラッカー';
   await renderHome(screen);
 }
 

@@ -12,7 +12,7 @@
 <div id="app" hidden>
   <header id="app-header">
     <nav id="header-nav"></nav>
-    <h1 id="screen-title">習慣</h1>
+    <h1 id="screen-title">習慣化トラッカー</h1>
     <div id="header-actions"></div>
   </header>
   <main id="screen"></main>
@@ -34,6 +34,17 @@
         <button type="submit">追加</button>
       </menu>
     </form>
+  </dialog>
+
+  <!-- close イベントに依存せず、ボタンのクリックで結果を決める。
+       form method="dialog" は returnValue を設定して閉じるところまでは動くが、
+       close イベントが発火しない環境があり、待ち続けて固まる。 -->
+  <dialog id="confirm-dialog">
+    <p id="confirm-message"></p>
+    <menu>
+      <button type="button" id="confirm-cancel">やめる</button>
+      <button type="button" id="confirm-ok" class="danger">消す</button>
+    </menu>
   </dialog>
 </div>
 
@@ -57,6 +68,35 @@
       </span>
     </button>
   </article>
+</template>
+
+<!-- カードを開いたときの中身。達成度を選ぶまでテキスト欄は無効にする
+     （rating は必須項目なので、達成度が決まるまでログを作れない）。 -->
+<template id="card-body-template">
+  <div class="card-body">
+    <div class="ratings" role="group" aria-label="達成度">
+      <button type="button" class="rating" data-rating="2">○</button>
+      <button type="button" class="rating" data-rating="1">△</button>
+      <button type="button" class="rating" data-rating="0">×</button>
+    </div>
+    <p class="recorded-at"></p>
+
+    <label class="field-label">
+      <span class="field-name">今日の一行動</span>
+      <textarea class="field" data-field="action" rows="2"></textarea>
+    </label>
+    <label class="field-label">
+      <span class="field-name">その日邪魔したもの</span>
+      <textarea class="field" data-field="blocker" rows="2"></textarea>
+    </label>
+    <label class="field-label">
+      <span class="field-name">明日への修正</span>
+      <textarea class="field" data-field="fix" rows="2"></textarea>
+    </label>
+
+    <p class="saved-note" hidden>保存しました</p>
+    <a class="week-link">週まとめを見る</a>
+  </div>
 </template>
 
 <p id="boot-status">読み込み中…</p>
