@@ -39,6 +39,11 @@ async function assertThrows(fn, message) {
   throw new Error(`${message}: 例外が投げられませんでした`);
 }
 
+// 記録日時の更新を見るテスト用。時計が進むのを待つ。
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function freshStore() {
   localStorage.removeItem(TEST_KEY);
   await storage.init({ key: TEST_KEY });
@@ -263,6 +268,34 @@ test('putLog は同じ (habit_id, date) を上書きする', async () => {
   assertEqual(second.id, first.id, '書き直しても id は変わらないはず');
   assertEqual((await storage.getLogs(habit.id)).length, 1, '2 件目が作られてはいけない');
   assertEqual((await storage.getLog(habit.id, '2026-08-01')).action, '20ページ', '内容が更新されるはず');
+});
+
+test('テキストだけ直しても記録日時は変わらない', async () => {
+  await freshStore();
+  const habit = await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
+  const first = await storage.putLog({
+    habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE, action: '5ページ',
+  });
+
+  await sleep(10);
+  const second = await storage.putLog({
+    habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE, action: '20ページ', fix: '朝に読む',
+  });
+
+  assertEqual(second.recorded_at, first.recorded_at, '達成度が同じなら据え置かれるはず');
+  assertEqual([second.action, second.fix], ['20ページ', '朝に読む'], 'テキストは更新される');
+});
+
+test('達成度を付け替えたら記録日時も更新される', async () => {
+  await freshStore();
+  const habit = await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
+  const first = await storage.putLog({ habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE });
+
+  await sleep(10);
+  const second = await storage.putLog({ habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.SKIP });
+
+  assert(second.recorded_at > first.recorded_at, '判断が変わったので更新されるはず');
+  assertEqual(second.id, first.id, 'id は据え置き');
 });
 
 test('putLog は存在しない習慣と不正な rating を拒否する', async () => {

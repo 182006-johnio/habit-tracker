@@ -155,7 +155,7 @@ export async function getLogsInRange(habit_id, from, to) {
 }
 
 // (habit_id, date) は一意なので、同じ日を書き直したときは 2 件目を作らず既存を更新する。
-// id は据え置き、recorded_at は書き直した時刻に更新する。
+// id は据え置き。recorded_at は達成度が変わったときだけ更新する（下のコメントを参照）。
 //
 // started_on より前の日付や未来の日付も受け付ける。判定ロジック側が started_on 以前を
 // 対象外として扱うため、ここで弾く必要がない。
@@ -167,7 +167,13 @@ export async function putLog({ habit_id, date, rating, action, blocker, fix }) {
 
   const existing = state.logs.find((log) => log.habit_id === habit_id && log.date === date);
   const log = createLog({ habit_id, date, rating, action, blocker, fix });
-  if (existing) log.id = existing.id;
+  if (existing) {
+    log.id = existing.id;
+    // 達成度が同じなら記録日時を据え置く。recorded_at は「その日をどう判断したか」を
+    // 決めた時刻なので、あとからテキストを書き足しただけでは動かさない。
+    // 達成度を付け替えたときは判断そのものが変わったので更新する。
+    if (log.rating === existing.rating) log.recorded_at = existing.recorded_at;
+  }
   assertValid(validateLog(log), 'ログ');
 
   const logs = existing
