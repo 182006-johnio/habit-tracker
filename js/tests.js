@@ -2,6 +2,8 @@
 //
 // 本番データを壊さないよう、保存先は専用のキーに切り替えて実行し、最後に消す。
 
+// export は予約語なので、モジュールの束縛名は backup にする。
+import * as backup from './export.js';
 import * as dates from './dates.js';
 import * as schema from './schema.js';
 import * as stats from './stats.js';
@@ -66,6 +68,18 @@ const MARKS = { '○': schema.RATING.DONE, '△': schema.RATING.PARTIAL, '×': s
 
 function day(n) {
   return dates.addDays(START, n - 1); // day(1) が開始日
+}
+
+// エクスポートの確認用。storage を経由せず、その場で組み立てる。
+function sampleBackup() {
+  return {
+    schemaVersion: schema.SCHEMA_VERSION,
+    habits: [makeHabit({ id: 'h-sample', name: '読書' })],
+    logs: [
+      makeLog({ id: 'l-sample-1', habit_id: 'h-sample', date: '2026-08-01', rating: schema.RATING.DONE, action: '20ページ' }),
+      makeLog({ id: 'l-sample-2', habit_id: 'h-sample', date: '2026-08-02', rating: schema.RATING.PARTIAL, blocker: '寝落ち' }),
+    ],
+  };
 }
 
 function logsFrom(pattern) {
@@ -422,6 +436,91 @@ test('判定ロジックは不正な日付を例外にする', async () => {
   await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');
 });
 
+// --- export（エクスポート） --------------------------------------------
+
+test('backupFilename は仕様どおりの形式で、ローカルの今日を使う', () => {
+  assertEqual(backup.backupFilename('2026-08-08'), 'habits-2026-08-08.json', 'ファイル名');
+  assertEqual(backup.backupFilename(), `habits-${dates.todayISO()}.json`, '省略時は今日');
+});
+
+test('書き出した JSON は往復しても壊れず、validateDB を通る', async () => {
+  await freshStore();
+  const habit = await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
+  await storage.putLog({ habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE, action: '20ページ' });
+  await storage.putLog({ habit_id: habit.id, date: '2026-08-02', rating: schema.RATING.PARTIAL });
+
+  const data = await storage.snapshot();
+  const parsed = JSON.parse(backup.serializeBackup(data));
+
+  assert(schema.validateDB(parsed).ok, '書き出した JSON が validateDB を通りません');
+  assertEqual(parsed, data, '往復で内容が変わっています');
+});
+
+test('書き出す JSON は snapshot そのままで、余計な項目を足さない', async () => {
+  await freshStore();
+  const parsed = JSON.parse(backup.serializeBackup(await storage.snapshot()));
+  assertEqual(Object.keys(parsed).sort(), ['habits', 'logs', 'schemaVersion'], 'トップレベルのキー');
+});
+
+test('canUseShare は navigator の能力で判定する', () => {
+  const file = new File(['{}'], 'x.json', { type: 'application/json' });
+  const share = () => {};
+  assert(backup.canUseShare({ share, canShare: () => true }, file), '両方あれば使える');
+  assert(!backup.canUseShare({ share, canShare: () => false }, file), 'canShare が false');
+  assert(!backup.canUseShare({ canShare: () => true }, file), 'share が無い');
+  assert(!backup.canUseShare({ share }, file), 'canShare が無い');
+  assert(!backup.canUseShare({}, file), '何も無い');
+  assert(!backup.canUseShare(undefined, file), 'navigator が無い');
+  assert(!backup.canUseShare({ share, canShare: () => { throw new Error('x'); } }, file), 'canShare が例外を投げる');
+});
+
+test('share が使えるなら共有シートに File を渡す', async () => {
+  let shared = null;
+  const nav = { canShare: () => true, share: async (payload) => { shared = payload; } };
+  const result = await backup.exportBackup({ today: '2026-08-08', nav, data: sampleBackup() });
+
+  assertEqual([result.method, result.cancelled], ['share', false], '経路');
+  assertEqual(result.filename, 'habits-2026-08-08.json', 'ファイル名');
+  assertEqual(shared.files[0].name, 'habits-2026-08-08.json', '共有した File の名前');
+  assertEqual(shared.files[0].type, 'application/json', '共有した File の型');
+});
+
+test('共有シートを閉じただけならエラーにしない', async () => {
+  const abort = Object.assign(new Error('cancelled'), { name: 'AbortError' });
+  const nav = { canShare: () => true, share: async () => { throw abort; } };
+  const result = await backup.exportBackup({ today: '2026-08-08', nav, data: sampleBackup() });
+  assertEqual([result.method, result.cancelled], ['share', true], 'キャンセル扱いになるはず');
+});
+
+test('share が AbortError 以外で失敗しても download に切り替えない', async () => {
+  let downloaded = false;
+  const nav = { canShare: () => true, share: async () => { throw new Error('boom'); } };
+  await assertThrows(
+    () => backup.exportBackup({
+      today: '2026-08-08',
+      nav,
+      data: sampleBackup(),
+      download: () => { downloaded = true; },
+    }),
+    'share の失敗',
+  );
+  assert(!downloaded, 'download にフォールバックしてはいけない');
+});
+
+test('share が使えない端末では download に回す', async () => {
+  let downloaded = null;
+  const result = await backup.exportBackup({
+    today: '2026-08-08',
+    nav: {}, // share も canShare も持たない端末
+    data: sampleBackup(),
+    download: (file, filename) => { downloaded = { name: file.name, filename }; },
+  });
+
+  assertEqual([result.method, result.cancelled], ['download', false], '経路');
+  assertEqual(downloaded.filename, 'habits-2026-08-08.json', 'download に渡したファイル名');
+  assertEqual(downloaded.name, 'habits-2026-08-08.json', 'File 自体の名前');
+});
+
 // --- 実行 -------------------------------------------------------------
 
 async function run() {
@@ -449,6 +548,32 @@ async function run() {
   summary.textContent = `${tests.length} 件中 ${tests.length - failed} 件成功 / ${failed} 件失敗`;
   summary.className = failed === 0 ? 'pass' : 'fail';
 }
+
+// share() はユーザー操作の直後にしか呼べないので、自動テストからは実行できない。
+// 経路そのものを試すためのボタン。保存済みのデータには触れず、サンプルを書き出す。
+function setupManualExport() {
+  const button = document.getElementById('export-sample');
+  const result = document.getElementById('export-result');
+
+  button.addEventListener('click', async () => {
+    result.className = '';
+    result.textContent = '書き出し中…';
+    try {
+      // data を渡すので storage を読まない。await を挟まずに share() まで届くため、
+      // クリックの操作起点も失われない。
+      const outcome = await backup.exportBackup({ data: sampleBackup() });
+      result.className = 'pass';
+      result.textContent = outcome.cancelled
+        ? `キャンセルされました（経路: ${outcome.method}）`
+        : `${outcome.method} で ${outcome.filename} を書き出しました`;
+    } catch (error) {
+      result.className = 'fail';
+      result.textContent = `失敗しました: ${error.name}: ${error.message}`;
+    }
+  });
+}
+
+setupManualExport();
 
 run().catch((error) => {
   const summary = document.getElementById('summary');
