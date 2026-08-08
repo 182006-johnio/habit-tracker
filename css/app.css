@@ -1,0 +1,89 @@
+/* ダーク固定。グリッドの未記入マスを背景と同化させる都合上、背景色を 1 つに定める。 */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #111;
+  --fg: #ddd;
+  --muted: #8b8b8b;
+  --line: #333;
+  --danger: #ff7b72;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  /* ホーム画面から起動したときにノッチとホームインジケータを避ける */
+  padding-top: calc(1rem + env(safe-area-inset-top));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+#screen-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+#header-nav:empty,
+#header-actions:empty {
+  display: none;
+}
+
+#header-nav a {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+#header-nav a:active {
+  color: var(--fg);
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--muted);
+}
+
+.empty p {
+  margin: 0 0 0.35rem;
+}
+
+.empty .note {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+#boot-status {
+  margin: 0;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+#boot-status.error {
+  color: var(--danger);
+}
