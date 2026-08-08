@@ -16,7 +16,48 @@
     <div id="header-actions"></div>
   </header>
   <main id="screen"></main>
+
+  <dialog id="add-habit-dialog">
+    <form id="add-habit-form">
+      <h2>習慣を追加</h2>
+
+      <label for="habit-name">名前</label>
+      <input id="habit-name" type="text" required autocomplete="off">
+
+      <label for="habit-started-on">開始日</label>
+      <input id="habit-started-on" type="date" required>
+
+      <p id="add-habit-error" class="error" hidden></p>
+
+      <menu>
+        <button id="add-habit-cancel" type="button">キャンセル</button>
+        <button type="submit">追加</button>
+      </menu>
+    </form>
+  </dialog>
 </div>
+
+<!-- 習慣カード。innerHTML を使わずに済むよう、骨組みはここに置いて複製する。
+     稲妻を緑と紫で出し分けるためインライン SVG にしている。絵文字の ⚡ は
+     iOS では色付き絵文字として描かれ、CSS で色を変えられない。 -->
+<template id="habit-card-template">
+  <article class="card">
+    <button type="button" class="card-head">
+      <span class="card-name"></span>
+      <span class="card-today"></span>
+      <span class="card-stats">
+        <span class="stat stat-streak" aria-label="連続日数">
+          <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
+          <span class="stat-value"></span>
+        </span>
+        <span class="stat stat-setback" aria-label="挫折回数">
+          <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
+          <span class="stat-value"></span>
+        </span>
+      </span>
+    </button>
+  </article>
+</template>
 
 <p id="boot-status">読み込み中…</p>
 

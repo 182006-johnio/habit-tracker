@@ -4,10 +4,16 @@
   color-scheme: dark;
 
   --bg: #111;
+  --surface: #171717;
   --fg: #ddd;
   --muted: #8b8b8b;
   --line: #333;
   --danger: #ff7b72;
+
+  /* 判定ロジックの分類に対応する色。グリッド表示でも同じ色を使う。 */
+  --streak: #3fb950;  /* 連続 */
+  --setback: #a371f7; /* 復帰・挫折回数 */
+  --skip: #f85149;    /* × */
 }
 
 * {
@@ -62,6 +68,162 @@ body {
 
 #header-nav a:active {
   color: var(--fg);
+}
+
+/* --- 習慣カード --- */
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.card-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.1rem 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card-head:active {
+  background: #1f1f1f;
+}
+
+.card-name {
+  grid-column: 1;
+  grid-row: 1;
+  font-weight: 600;
+}
+
+.card-today {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 1.25rem;
+}
+
+.card-stats {
+  display: flex;
+  grid-column: 1;
+  grid-row: 2;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bolt {
+  width: 1em;
+  height: 1em;
+}
+
+.stat-streak .bolt { fill: var(--streak); }
+.stat-setback .bolt { fill: var(--setback); }
+
+.mark-done { color: var(--streak); }
+.mark-partial { color: var(--streak); opacity: 0.55; }
+.mark-skip { color: var(--skip); }
+.mark-none { color: var(--muted); }
+
+.add-habit {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+}
+
+.add-habit:active {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+/* --- 追加モーダル --- */
+
+dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1a1a1a;
+  color: var(--fg);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+dialog label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+dialog input {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  /* 16px を下回ると iOS が入力欄にズームする */
+  font: inherit;
+}
+
+dialog menu {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+dialog menu button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+}
+
+dialog menu button[type='submit'] {
+  background: #2a2a2a;
+}
+
+.error {
+  margin: 0 0 0.5rem;
+  color: var(--danger);
+  font-size: 0.875rem;
 }
 
 .placeholder {
