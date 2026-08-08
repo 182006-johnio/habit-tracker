@@ -15,6 +15,19 @@ const startedOnInput = document.getElementById('habit-started-on');
 const errorBox = document.getElementById('add-habit-error');
 const cancelButton = document.getElementById('add-habit-cancel');
 
+const editDialog = document.getElementById('edit-habit-dialog');
+const editForm = document.getElementById('edit-habit-form');
+const editName = document.getElementById('edit-habit-name');
+const editStartedOn = document.getElementById('edit-habit-started-on');
+const editOrderBlock = document.getElementById('edit-habit-order');
+const editPosition = document.getElementById('edit-habit-position');
+const editUp = document.getElementById('edit-habit-up');
+const editDown = document.getElementById('edit-habit-down');
+const editError = document.getElementById('edit-habit-error');
+const editArchive = document.getElementById('edit-habit-archive');
+const editDelete = document.getElementById('edit-habit-delete');
+const editCancel = document.getElementById('edit-habit-cancel');
+
 const confirmDialogEl = document.getElementById('confirm-dialog');
 const confirmMessage = document.getElementById('confirm-message');
 const confirmOk = document.getElementById('confirm-ok');
@@ -30,6 +43,7 @@ const NO_MARK = { text: '—', className: 'mark-none' };
 
 let currentRoot = null;
 let wired = false;
+let editing = null;
 
 // 開いているカード。開くのは 1 枚ずつ。
 // { habit, article, body, log, date }
@@ -42,21 +56,56 @@ export async function renderHome(root) {
   await closeOpen();
   root.replaceChildren();
 
-  const habits = await storage.getHabits();
+  const all = await storage.getHabits({ includeArchived: true });
+  const active = all.filter((habit) => !habit.archived);
+  const archived = all.filter((habit) => habit.archived);
   const today = todayISO();
 
-  if (habits.length === 0) {
+  if (active.length === 0) {
     root.append(emptyState());
   } else {
     const list = document.createElement('div');
     list.className = 'card-list';
-    for (const habit of habits) {
+    for (const habit of active) {
       list.append(await habitCard(habit, today));
     }
     root.append(list);
   }
 
   root.append(addButton());
+
+  // 休止すると一覧から消えるので、戻せる場所を用意する。1 件も無ければ出さない。
+  if (archived.length > 0) {
+    root.append(archivedSection(archived));
+  }
+}
+
+function archivedSection(habits) {
+  const details = document.createElement('details');
+  details.className = 'archived';
+
+  const summary = document.createElement('summary');
+  summary.textContent = `休止中 (${habits.length})`;
+  details.append(summary);
+
+  for (const habit of habits) {
+    const row = document.createElement('div');
+    row.className = 'archived-row';
+
+    const name = document.createElement('span');
+    name.textContent = habit.name;
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'edit-link';
+    edit.textContent = '編集';
+    edit.addEventListener('click', () => openEdit(habit));
+
+    row.append(name, edit);
+    details.append(row);
+  }
+
+  return details;
 }
 
 // --- カード -------------------------------------------------------------
@@ -98,6 +147,7 @@ async function toggleCard(habit, card, today) {
   open = { habit, article: card, body, log, date: today };
 
   body.querySelector('.week-link').href = `#week/${encodeURIComponent(habit.id)}`;
+  body.querySelector('.edit-link').addEventListener('click', () => openEdit(habit));
   for (const button of body.querySelectorAll('.rating')) {
     button.addEventListener('click', () => onRating(Number(button.dataset.rating)));
   }
@@ -263,9 +313,111 @@ function hideError() {
 // dialog の close イベントには依存しない。閉じて returnValue も設定されるのに
 // close が発火しない環境があり、その場合 await が解決せず操作が固まる。
 // ボタンのクリックで直接決め、Esc（cancel イベント）は取り消し扱いにする。
-function askConfirm(message) {
+// --- 習慣の編集 ---------------------------------------------------------
+
+async function openEdit(habit) {
+  editing = habit;
+  editName.value = habit.name;
+  editStartedOn.value = habit.started_on;
+  editArchive.textContent = habit.archived ? '再開する' : '休止する';
+  // 休止中の並び順は畳まれた一覧の中の話なので出さない。
+  editOrderBlock.hidden = habit.archived;
+  hideEditError();
+
+  if (!habit.archived) await refreshPosition();
+  editDialog.showModal();
+}
+
+// 並べ替えは休止状態が同じ習慣の中で行う。休止中の習慣が間に挟まっていても
+// 「上へ」が空振りしないようにするため。
+async function siblingsOf(habit) {
+  const all = await storage.getHabits({ includeArchived: true });
+  return all.filter((candidate) => candidate.archived === habit.archived);
+}
+
+async function refreshPosition() {
+  const siblings = await siblingsOf(editing);
+  const index = siblings.findIndex((habit) => habit.id === editing.id);
+
+  editPosition.textContent = `${index + 1} / ${siblings.length}`;
+  editUp.disabled = index <= 0;
+  editDown.disabled = index >= siblings.length - 1;
+}
+
+async function moveEditing(delta) {
+  const siblings = await siblingsOf(editing);
+  const index = siblings.findIndex((habit) => habit.id === editing.id);
+  const target = index + delta;
+  if (target < 0 || target >= siblings.length) return;
+
+  // 隣と order を入れ替える。order は連番とは限らない（削除で歯抜けになる）が、
+  // 値そのものを交換するので問題にならない。
+  const moving = siblings[index];
+  const neighbour = siblings[target];
+  await storage.updateHabit(moving.id, { order: neighbour.order });
+  await storage.updateHabit(neighbour.id, { order: moving.order });
+
+  editing = await storage.getHabit(editing.id);
+  await refreshPosition();
+}
+
+async function toggleArchive() {
+  await storage.setArchived(editing.id, !editing.archived);
+  await closeEdit();
+}
+
+async function deleteEditing() {
+  const logs = await storage.getLogs(editing.id);
+  const message = logs.length === 0
+    ? `「${editing.name}」を削除しますか？`
+    : `「${editing.name}」を削除します。記録 ${logs.length} 件も一緒に消えます。`;
+
+  if (!(await askConfirm(message, '削除する'))) return;
+
+  await storage.deleteHabit(editing.id);
+  await closeEdit();
+}
+
+async function onEditSubmit(event) {
+  event.preventDefault();
+  hideEditError();
+
+  const name = editName.value.trim();
+  if (name === '') {
+    showEditError('名前を入力してください。');
+    return;
+  }
+
+  try {
+    await storage.updateHabit(editing.id, { name, started_on: editStartedOn.value });
+  } catch (error) {
+    showEditError(error.message);
+    return;
+  }
+  await closeEdit();
+}
+
+// 並べ替えや休止はモーダルの中で既に反映されているので、閉じたら必ず描き直す。
+async function closeEdit() {
+  if (editDialog.open) editDialog.close();
+  editing = null;
+  await renderHome(currentRoot);
+}
+
+function showEditError(message) {
+  editError.textContent = message;
+  editError.hidden = false;
+}
+
+function hideEditError() {
+  editError.textContent = '';
+  editError.hidden = true;
+}
+
+function askConfirm(message, okLabel = '消す') {
   return new Promise((resolve) => {
     confirmMessage.textContent = message;
+    confirmOk.textContent = okLabel;
 
     const settle = (ok) => {
       confirmOk.removeEventListener('click', onOk);
@@ -291,6 +443,14 @@ function wireOnce() {
 
   form.addEventListener('submit', onSubmit);
   cancelButton.addEventListener('click', () => dialog.close());
+
+  editForm.addEventListener('submit', onEditSubmit);
+  editCancel.addEventListener('click', closeEdit);
+  editDialog.addEventListener('cancel', closeEdit);
+  editUp.addEventListener('click', () => moveEditing(-1));
+  editDown.addEventListener('click', () => moveEditing(1));
+  editArchive.addEventListener('click', toggleArchive);
+  editDelete.addEventListener('click', deleteEditing);
 
   // iOS では PWA をホームに戻したときなどに blur が発火しないことがある。
   // 書きかけを失わないよう、画面が隠れる側でも保存する。

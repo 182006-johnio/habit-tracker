@@ -36,6 +36,43 @@
     </form>
   </dialog>
 
+  <dialog id="edit-habit-dialog">
+    <form id="edit-habit-form">
+      <h2>習慣を編集</h2>
+
+      <label for="edit-habit-name">名前</label>
+      <input id="edit-habit-name" type="text" required autocomplete="off">
+
+      <label for="edit-habit-started-on">開始日</label>
+      <input id="edit-habit-started-on" type="date" required>
+
+      <div id="edit-habit-order">
+        <p class="order-row">
+          <span>並び順</span>
+          <span id="edit-habit-position"></span>
+        </p>
+        <div class="order-buttons">
+          <button type="button" id="edit-habit-up">上へ</button>
+          <button type="button" id="edit-habit-down">下へ</button>
+        </div>
+      </div>
+
+      <p id="edit-habit-error" class="error" hidden></p>
+
+      <!-- 並べ替え・休止・削除は押した時点で反映する。保存ボタンの対象は
+           名前と開始日だけ。 -->
+      <div class="edit-actions">
+        <button type="button" id="edit-habit-archive"></button>
+        <button type="button" id="edit-habit-delete" class="danger">この習慣を削除</button>
+      </div>
+
+      <menu>
+        <button type="button" id="edit-habit-cancel">キャンセル</button>
+        <button type="submit">保存</button>
+      </menu>
+    </form>
+  </dialog>
+
   <!-- close イベントに依存せず、ボタンのクリックで結果を決める。
        form method="dialog" は returnValue を設定して閉じるところまでは動くが、
        close イベントが発火しない環境があり、待ち続けて固まる。 -->
@@ -95,7 +132,10 @@
     </label>
 
     <p class="saved-note" hidden>保存しました</p>
-    <a class="week-link">週まとめを見る</a>
+    <div class="card-links">
+      <a class="week-link">週まとめを見る</a>
+      <button type="button" class="edit-link">編集</button>
+    </div>
   </div>
 </template>
 
