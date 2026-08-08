@@ -85,4 +85,14 @@ function backLink() {
   return link;
 }
 
+// オフラインでも起動できるようにする。登録に失敗してもアプリは動くので、
+// 画面には出さずコンソールに残すだけにする。
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js').catch((error) => {
+    console.warn('Service Worker を登録できませんでした:', error);
+  });
+}
+
 start();
+registerServiceWorker();
