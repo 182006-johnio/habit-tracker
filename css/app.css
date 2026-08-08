@@ -251,6 +251,84 @@ body {
   color: var(--fg);
 }
 
+/* --- 週まとめ --- */
+
+.week-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.week {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.week summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.week-number {
+  font-weight: 600;
+}
+
+.week-range {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.day {
+  border-top: 1px solid var(--line);
+}
+
+.day-head {
+  display: grid;
+  grid-template-columns: 5.5rem 1.5rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.875rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+}
+
+.day-head:active {
+  background: #1f1f1f;
+}
+
+.day-head:disabled {
+  opacity: 0.35;
+}
+
+.day-label {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-mark {
+  text-align: center;
+}
+
+.day-excerpt {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-form {
+  padding: 0.25rem 0.875rem 0.875rem;
+}
+
 /* --- 休止中 --- */
 
 .archived {

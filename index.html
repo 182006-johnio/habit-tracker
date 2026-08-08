@@ -107,10 +107,12 @@
   </article>
 </template>
 
-<!-- カードを開いたときの中身。達成度を選ぶまでテキスト欄は無効にする
-     （rating は必須項目なので、達成度が決まるまでログを作れない）。 -->
-<template id="card-body-template">
-  <div class="card-body">
+<!-- 記録フォーム。ホームの「今日の記録」と、週まとめの「過去の日の記録・修正」で
+     同じものを使う。達成度を選ぶまでテキスト欄は無効にする（rating は必須項目
+     なので、達成度が決まるまでログを作れない）。
+     項目名は対象日が今日かどうかで入れ替えるので、ここでは空にしておく。 -->
+<template id="record-form-template">
+  <div class="record-form">
     <div class="ratings" role="group" aria-label="達成度">
       <button type="button" class="rating" data-rating="2">○</button>
       <button type="button" class="rating" data-rating="1">△</button>
@@ -119,23 +121,19 @@
     <p class="recorded-at"></p>
 
     <label class="field-label">
-      <span class="field-name">今日の一行動</span>
+      <span class="field-name" data-label="action"></span>
       <textarea class="field" data-field="action" rows="2"></textarea>
     </label>
     <label class="field-label">
-      <span class="field-name">今日邪魔したもの</span>
+      <span class="field-name" data-label="blocker"></span>
       <textarea class="field" data-field="blocker" rows="2"></textarea>
     </label>
     <label class="field-label">
-      <span class="field-name">明日への修正</span>
+      <span class="field-name" data-label="fix"></span>
       <textarea class="field" data-field="fix" rows="2"></textarea>
     </label>
 
     <p class="saved-note" hidden>保存しました</p>
-    <div class="card-links">
-      <a class="week-link">週まとめを見る</a>
-      <button type="button" class="edit-link">編集</button>
-    </div>
   </div>
 </template>
 

@@ -66,10 +66,27 @@ export function nowTimestamp() {
   return new Date().toISOString();
 }
 
+// --- 表示用の整形 -----------------------------------------------------
+// 日付の見せ方はここに集める。同じ表記が画面ごとにばらつかないようにするため。
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
 // recorded_at を画面表示用のローカル表記にする（例: 8月8日 21:34）。
 // 保存は UTC、表示は端末のローカルタイム。
 export function formatTimestamp(timestamp) {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
   return `${date.getMonth() + 1}月${date.getDate()}日 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+// 例: 8月15日
+export function formatMonthDay(iso) {
+  const [, month, day] = requireISO(iso).split('-').map(Number);
+  return `${month}月${day}日`;
+}
+
+// 例: 8/15 (金)
+export function formatDayLabel(iso) {
+  const date = fromISO(requireISO(iso));
+  return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAYS[date.getDay()]})`;
 }
