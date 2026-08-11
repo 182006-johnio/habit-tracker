@@ -7,7 +7,7 @@
 //
 // 更新するときは CACHE の名前を変える。古いキャッシュは activate で消える。
 
-const CACHE = 'habit-tracker-v3';
+const CACHE = 'habit-tracker-v4';
 const NETWORK_TIMEOUT = 3000;
 
 const PRECACHE = [

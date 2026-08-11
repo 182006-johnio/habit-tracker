@@ -8,11 +8,18 @@
 // 左方向のみ。iOS では画面左端からの右スワイプが「戻る」に割り当てられていて、
 // 週まとめ画面との行き来で使うため衝突させない。
 
-const REVEAL = 72; // 削除ボタンの幅
-const COMMIT = 36; // ここまで動かしたら開いたままにする
+const FALLBACK_REVEAL = 96;
 const SLOP = 8; // これ未満の移動はタップとみなす
 
 let opened = null;
+
+// 削除ボタンの幅は CSS の --swipe-reveal が持つ。ここで数値を二重に持つと、
+// 片方だけ直したときに赤い領域の幅と確定位置がずれる。
+function revealWidth() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--swipe-reveal');
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) && value > 0 ? value : FALLBACK_REVEAL;
+}
 
 export function closeOpenSwipe() {
   opened?.close();
@@ -20,6 +27,9 @@ export function closeOpenSwipe() {
 
 // locked() が true の間はスワイプを受け付けない（展開中のカードなど）。
 export function enableSwipe(surface, { locked = () => false } = {}) {
+  const reveal = revealWidth();
+  const commit = reveal / 2; // ここまで動かしたら開いたままにする
+
   let resting = 0;
   let startX = 0;
   let dragging = false;
@@ -31,7 +41,7 @@ export function enableSwipe(surface, { locked = () => false } = {}) {
   }
 
   function settle(open) {
-    resting = open ? -REVEAL : 0;
+    resting = open ? -reveal : 0;
     setX(resting, true);
     if (open) {
       opened?.close?.();
@@ -65,14 +75,14 @@ export function enableSwipe(surface, { locked = () => false } = {}) {
         // 何もしない
       }
     }
-    setX(Math.min(0, Math.max(-REVEAL, resting + delta)), false);
+    setX(Math.min(0, Math.max(-reveal, resting + delta)), false);
   });
 
   surface.addEventListener('pointerup', (event) => {
     if (!dragging) return;
     dragging = false;
     if (!moved) return;
-    settle(resting + (event.clientX - startX) <= -COMMIT);
+    settle(resting + (event.clientX - startX) <= -commit);
   });
 
   surface.addEventListener('pointercancel', () => {
