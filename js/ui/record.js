@@ -12,8 +12,8 @@ const template = document.getElementById('record-form-template');
 // 対象日が今日かどうかで項目名を入れ替える。3 日前を直しているのに
 // 「今日」と出るのを避ける。
 const LABELS = {
-  today: { action: '今日の一行動', blocker: '今日邪魔したもの', fix: '明日への修正' },
-  past: { action: 'その日の一行動', blocker: 'その日邪魔したもの', fix: '翌日への修正' },
+  today: { action: '今日の行動', blocker: '今日邪魔したもの', fix: '明日への修正' },
+  past: { action: 'その日の行動', blocker: 'その日邪魔したもの', fix: '翌日への修正' },
 };
 
 let active = null;

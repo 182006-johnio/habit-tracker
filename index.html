@@ -22,7 +22,7 @@
 <div id="app" hidden>
   <header id="app-header">
     <nav id="header-nav"></nav>
-    <h1 id="screen-title">習慣化トラッカー</h1>
+    <h1 id="screen-title">習慣化トラッカー＋日記</h1>
     <div id="header-actions"></div>
   </header>
   <p id="export-status" hidden></p>
@@ -101,6 +101,16 @@
      iOS では色付き絵文字として描かれ、CSS で色を変えられない。 -->
 <template id="habit-card-template">
   <article class="card">
+    <!-- 左スワイプで表面が滑り、下から削除ボタンが出る -->
+    <div class="card-delete">
+      <button type="button" class="trash-button" aria-label="この習慣を削除">
+        <svg class="trash" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 3h6l1 2h4v2H4V5h4l1-2z"/>
+          <path d="M6 9h12l-1 12H7L6 9z"/>
+        </svg>
+      </button>
+    </div>
+    <div class="card-surface">
     <button type="button" class="card-head">
       <span class="card-name"></span>
       <span class="card-today"></span>
@@ -115,6 +125,7 @@
         </span>
       </span>
     </button>
+    </div>
   </article>
 </template>
 

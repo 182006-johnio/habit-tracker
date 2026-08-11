@@ -7,6 +7,7 @@ import * as storage from '../storage.js';
 import { askConfirm } from './confirm.js';
 import { markFor } from './marks.js';
 import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
+import { closeOpenSwipe, enableSwipe } from './swipe.js';
 
 const cardTemplate = document.getElementById('habit-card-template');
 
@@ -37,6 +38,7 @@ let editing = null;
 export async function renderHome(root) {
   currentRoot = root;
   wireOnce();
+  closeOpenSwipe();
   await closeRecordForm();
   root.replaceChildren();
 
@@ -72,7 +74,30 @@ async function habitCard(habit, today) {
   await fillHead(card, habit, today);
 
   card.querySelector('.card-head').addEventListener('click', () => toggleCard(habit, card, today));
+
+  // 展開中はスワイプを受け付けない。入力中に消えるのを防ぐため。
+  enableSwipe(card.querySelector('.card-surface'), { locked: () => isOpenFor(habit.id, today) });
+  card.querySelector('.trash-button').addEventListener('click', () => deleteFromSwipe(habit));
+
   return card;
+}
+
+async function deleteFromSwipe(habit) {
+  if (!(await confirmDeleteHabit(habit))) {
+    closeOpenSwipe();
+    return;
+  }
+  await storage.deleteHabit(habit.id);
+  await renderHome(currentRoot);
+}
+
+// スワイプからの削除と、編集モーダルからの削除で同じ確認を出す。
+async function confirmDeleteHabit(habit) {
+  const logs = await storage.getLogs(habit.id);
+  const message = logs.length === 0
+    ? `「${habit.name}」を削除しますか？`
+    : `「${habit.name}」を削除します。記録 ${logs.length} 件も一緒に消えます。`;
+  return askConfirm(message, '削除する');
 }
 
 // 見出しに出る連続日数・挫折回数・今日の状態は、保存された値ではなく毎回の導出。
@@ -91,6 +116,7 @@ async function fillHead(card, habit, today) {
 }
 
 async function toggleCard(habit, card, today) {
+  closeOpenSwipe();
   if (isOpenFor(habit.id, today)) {
     await closeRecordForm();
     return;
@@ -108,7 +134,7 @@ async function toggleCard(habit, card, today) {
   });
 
   body.append(recordForm, cardLinks(habit));
-  card.append(body);
+  card.querySelector('.card-surface').append(body);
   card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
@@ -278,13 +304,7 @@ async function toggleArchive() {
 }
 
 async function deleteEditing() {
-  const logs = await storage.getLogs(editing.id);
-  const message = logs.length === 0
-    ? `「${editing.name}」を削除しますか？`
-    : `「${editing.name}」を削除します。記録 ${logs.length} 件も一緒に消えます。`;
-
-  if (!(await askConfirm(message, '削除する'))) return;
-
+  if (!(await confirmDeleteHabit(editing))) return;
   await storage.deleteHabit(editing.id);
   await closeEdit();
 }

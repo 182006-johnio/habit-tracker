@@ -105,10 +105,52 @@ body {
 }
 
 .card {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
   overflow: hidden;
+}
+
+/* スワイプで現れる削除ボタン。表面の下に敷いておく。 */
+.card-delete {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  width: 72px;
+  align-items: center;
+  justify-content: center;
+  background: var(--skip);
+}
+
+.trash-button {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+}
+
+.trash {
+  width: 22px;
+  height: 22px;
+  fill: #fff;
+}
+
+.card-surface {
+  position: relative;
+  background: var(--surface);
+  /* 縦スクロールはブラウザに任せ、横方向だけを拾う */
+  touch-action: pan-y;
+  transform: translateX(0);
+  transition: transform 0.18s ease-out;
+}
+
+/* 指で動かしている間はアニメーションさせない */
+.card-surface.swiping {
+  transition: none;
 }
 
 .card-head {
