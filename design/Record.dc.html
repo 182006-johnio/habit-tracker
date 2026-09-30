@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>記録 プログラミング</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button,input,textarea{font:inherit;color:inherit}
+input::placeholder,textarea::placeholder{color:#6F7C93}
+a{color:#0F1B33}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 390px; height: 1060px; background: #EDF1F7; color: #0F1B33; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; gap: 18px; padding: 52px 16px 32px 16px">
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 2px; min-height: 44px; width: 96px; font-size: 15px; font-weight: 600; text-decoration: none">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5 7 10l5.5 5.5"></path></svg>
+      今日
+    </a>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px">
+      <h1 style="margin: 0; font-size: 26px; font-weight: 800">プログラミング</h1>
+      <div style="font-size: 13px; color: #52607A; font-weight: 600">10月1日（木）・ 今週 3/7 ・ 連続 2日 ・ 累計 28/66</div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border: 1px solid #DDE4EE; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+    <div style="font-size: 12px; color: #52607A; font-weight: 700">きっかけ</div>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; font-weight: 700">
+      <span>夕食を食べ終えたら</span>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h11"></path><path d="M10 5l4 4-4 4"></path></svg>
+      <span>PCを開いて1問解く</span>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="font-size: 14px; font-weight: 700; padding: 0 4px">達成度</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <button type="button" onClick="{{pickO}}" style="{{oStyle}}">
+        <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="10" cy="10" r="7"></circle></svg>
+        <span style="font-size: 13px; font-weight: 700">できた</span>
+      </button>
+      <button type="button" onClick="{{pickT}}" style="{{tStyle}}">
+        <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M10 3.5 17 16H3z"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">少し</span>
+      </button>
+      <button type="button" onClick="{{pickX}}" style="{{xStyle}}">
+        <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">できず</span>
+      </button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <label for="act" style="font-size: 14px; font-weight: 700; padding: 0 4px">今日の一行動</label>
+    <input id="act" type="text" placeholder="例：配列の問題を1問解いた" style="height: 48px; border-radius: 12px; border: 1.5px solid #CAD3E1; background: #FFFFFF; padding: 0 14px; font-size: 16px">
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <label for="tag" style="font-size: 14px; font-weight: 700; padding: 0 4px">邪魔したもの</label>
+    <div style="display: flex; gap: 8px; align-items: center">
+      <input id="tag" type="text" placeholder="タグを入力" style="flex-grow: 1; height: 44px; border-radius: 12px; border: 1.5px solid #CAD3E1; background: #FFFFFF; padding: 0 14px; font-size: 16px">
+      <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1.5px solid #0F1B33; background: #FFFFFF; font-size: 14px; font-weight: 700">追加</button>
+    </div>
+    <div style="font-size: 12px; color: #52607A; font-weight: 600; padding: 0 4px">よく使うタグ</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{tags}}" as="t" hint-placeholder-count="5">
+        <button type="button" onClick="{{t.toggle}}" style="{{t.style}}">
+          <span>{{t.name}}</span>
+          <span style="font-size: 12px; opacity: 0.75; font-variant-numeric: tabular-nums">{{t.count}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <label for="note" style="font-size: 12px; color: #52607A; font-weight: 600; padding: 4px 4px 0 4px">メモ（任意）</label>
+    <input id="note" type="text" placeholder="タグで表しきれないこと" style="height: 44px; border-radius: 12px; border: 1.5px solid #CAD3E1; background: #FFFFFF; padding: 0 14px; font-size: 16px">
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <label for="fix" style="font-size: 14px; font-weight: 700; padding: 0 4px">明日への修正</label>
+    <textarea id="fix" rows="3" placeholder="もし〜なら、〜する" style="border-radius: 12px; border: 1.5px solid #CAD3E1; background: #FFFFFF; padding: 12px 14px; font-size: 16px; resize: none"></textarea>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px">
+    <a href="Comeback.dc.html" style="height: 52px; border-radius: 14px; background: #0F1B33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; text-decoration: none">記録する</a>
+    <div style="font-size: 12px; color: #52607A; text-align: center; font-weight: 600">記録時刻は保存した時点で自動で入る</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mark: 't', picked: ['疲労'] };
+  }
+  renderVals() {
+    const base = 'height: 76px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; ';
+    const on = base + 'background: #0F1B33; color: #FFFFFF; border: 1.5px solid #0F1B33';
+    const off = base + 'background: #FFFFFF; color: #0F1B33; border: 1.5px solid #CAD3E1';
+    const chip = 'min-height: 40px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; cursor: pointer; ';
+    const chipOn = chip + 'background: #0F1B33; color: #FFFFFF; border: 1.5px solid #0F1B33';
+    const chipOff = chip + 'background: #FFFFFF; color: #0F1B33; border: 1.5px solid #CAD3E1';
+    const all = [
+      { name: '疲労', count: 5 },
+      { name: 'SNS', count: 3 },
+      { name: '課題', count: 2 },
+      { name: '寝不足', count: 2 },
+      { name: 'バイト', count: 1 }
+    ];
+    const picked = this.state.picked;
+    const tags = all.map((t) => ({
+      ...t,
+      style: picked.includes(t.name) ? chipOn : chipOff,
+      toggle: () => this.setState({
+        picked: picked.includes(t.name) ? picked.filter((p) => p !== t.name) : picked.concat(t.name)
+      })
+    }));
+    const m = this.state.mark;
+    return {
+      oStyle: m === 'o' ? on : off,
+      tStyle: m === 't' ? on : off,
+      xStyle: m === 'x' ? on : off,
+      pickO: () => this.setState({ mark: 'o' }),
+      pickT: () => this.setState({ mark: 't' }),
+      pickX: () => this.setState({ mark: 'x' }),
+      tags
+    };
+  }
+}
+</script>
+</body>
+</html>

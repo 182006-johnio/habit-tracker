@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>今日の習慣</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button,input,textarea{font:inherit;color:inherit}
+a{color:#1E3A8A}a:hover{color:#172554}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #EDF1F7; color: #0F1B33; font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif; overflow: hidden; display: flex; flex-direction: column">
+  <div style="padding: 56px 20px 16px 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="font-size: 13px; color: #52607A; font-weight: 600">10月1日 木曜日</div>
+      <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.01em">今日の習慣</h1>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <a href="Week.dc.html" aria-label="週まとめ" style="width: 44px; height: 44px; border-radius: 14px; background: #FFFFFF; border: 1px solid #DAE1EC; display: flex; align-items: center; justify-content: center; color: #0F1B33">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 16V9"></path><path d="M10 16V4"></path><path d="M16 16v-5"></path></svg>
+      </a>
+      <a href="Edit.dc.html" aria-label="習慣を追加" style="width: 44px; height: 44px; border-radius: 14px; background: #0F1B33; display: flex; align-items: center; justify-content: center; color: #FFFFFF">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 4v12"></path><path d="M4 10h12"></path></svg>
+      </a>
+    </div>
+  </div>
+
+  <div style="padding: 4px 16px 24px 16px; display: flex; flex-direction: column; gap: 12px">
+    <sc-for list="{{habits}}" as="h" hint-placeholder-count="3">
+      <div style="background: #FFFFFF; border: 1px solid #DDE4EE; border-radius: 20px; padding: 16px 16px 14px 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+          <a href="Record.dc.html" style="font-size: 17px; font-weight: 700; color: #0F1B33; text-decoration: none">{{h.name}}</a>
+          <div style="font-size: 13px; color: #52607A; font-weight: 600">復帰 {{h.comeback}}回</div>
+        </div>
+
+        <sc-if value="{{h.isStreak}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: baseline; gap: 6px; color: {{accent}}">
+            <svg width="22" height="26" viewBox="0 0 22 26" fill="#FACC15" stroke="#A16207" stroke-width="1.2" stroke-linejoin="round" style="align-self: center"><path d="M13 1 3 15h7l-2 10 11-15h-7l1-9z"></path></svg>
+            <span style="font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums">{{h.streak}}</span>
+            <span style="font-size: 15px; font-weight: 700">日連続</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{h.isWeek}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: baseline; gap: 6px; color: #1E3A8A">
+              <span style="font-size: 15px; font-weight: 700">今週</span>
+              <span style="font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums">{{h.weekCount}}</span>
+              <span style="font-size: 20px; font-weight: 700">/ 7</span>
+              <span style="font-size: 13px; font-weight: 600; color: #52607A; margin-left: 6px">連続 {{h.streak}}日</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">
+              <sc-for list="{{h.days}}" as="d" hint-placeholder-count="7">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+                  <div style="{{d.style}}"></div>
+                  <div style="font-size: 11px; color: #52607A; font-weight: 600">{{d.label}}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{h.isDone}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="background: #0F1B33; color: #FFFFFF; font-size: 14px; font-weight: 800; padding: 8px 12px; border-radius: 999px">66日達成</span>
+            <span style="display: flex; align-items: baseline; gap: 4px; color: {{accent}}">
+              <span style="font-size: 28px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums">{{h.streak}}</span>
+              <span style="font-size: 14px; font-weight: 700">日連続</span>
+            </span>
+          </div>
+        </sc-if>
+
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 12px; color: #52607A; font-weight: 600; font-variant-numeric: tabular-nums">{{h.cumLabel}}</div>
+          <div style="height: 6px; background: #E1E8F2; border-radius: 999px; overflow: hidden">
+            <div style="height: 6px; background: #0F1B33; border-radius: 999px; width: {{h.gaugeW}}"></div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+          <button type="button" aria-label="できた" style="{{h.oStyle}}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="10" cy="10" r="7"></circle></svg>
+          </button>
+          <button type="button" aria-label="少しできた" style="{{h.tStyle}}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M10 3.5 17 16H3z"></path></svg>
+          </button>
+          <button type="button" aria-label="できなかった" style="{{h.xStyle}}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"></path></svg>
+          </button>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2563EB","options":["#2563EB","#1D4ED8","#0369A1"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#2563EB';
+    const base = 'height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; ';
+    const on = base + 'background: #0F1B33; color: #FFFFFF; border: 1.5px solid #0F1B33';
+    const off = base + 'background: #FFFFFF; color: #0F1B33; border: 1.5px solid #CAD3E1';
+    const dot = 'width: 22px; height: 22px; border-radius: 999px; ';
+    const dotStyle = {
+      o: dot + 'background: #1E3A8A',
+      t: dot + 'background: #9DB8F2',
+      x: dot + 'background: #FFFFFF; border: 2px solid #8A96AB',
+      n: dot + 'background: #E8EDF4'
+    };
+    const labels = ['月', '火', '水', '木', '金', '土', '日'];
+    const raw = [
+      { name: '腕立て伏せ', mode: 'streak', streak: 23, cum: 41, comeback: 2, today: 'o' },
+      { name: 'プログラミング', mode: 'week', streak: 2, weekCount: 3, cum: 28, comeback: 5, today: 't', days: ['o', 'x', 'o', 't', 'n', 'n', 'n'] },
+      { name: '読書', mode: 'done', streak: 12, cum: 74, comeback: 3, today: '' }
+    ];
+    const habits = raw.map((h) => ({
+      ...h,
+      isStreak: h.mode === 'streak',
+      isWeek: h.mode === 'week',
+      isDone: h.mode === 'done',
+      days: (h.days || []).map((s, i) => ({ style: dotStyle[s], label: labels[i] })),
+      gaugeW: Math.min(h.cum, 66) / 66 * 100 + '%',
+      cumLabel: h.cum >= 66 ? '累計 ' + h.cum + '日' : '累計 ' + h.cum + ' / 66日',
+      oStyle: h.today === 'o' ? on : off,
+      tStyle: h.today === 't' ? on : off,
+      xStyle: h.today === 'x' ? on : off
+    }));
+    return { accent, habits };
+  }
+}
+</script>
+</body>
+</html>
