@@ -1,164 +1,373 @@
-// 週まとめ画面。started_on から暦日で 7 日ずつ区切った週を並べ、開くと 7 日分を出す。
-// 各日を押すと、ホームと同じ記録フォームがその場で開く。
+// 週まとめ画面。#week が今週、#week/<週の月曜> がその週。
 //
-// グリッド表示は後の段階でこの上に足す。
+// 習慣ごとではなく、全習慣 × 曜日の表にする（CLAUDE.md v2「週の区切りをカレンダー週に
+// する」）。週は全習慣で共通なので、1 枚の表にその週の全部が収まる。
+//
+// 表のマスを押すと、その習慣のその日の記録画面へ移る。マスは 7 列に割ると 44px 四方は
+// 取れないが（390px の画面に入らない）、高さは 44px 取り、過去の日を直す経路は残す。
 
-import { formatDayLabel, formatMonthDay, startOfWeek, todayISO } from '../dates.js';
+import { addDays, formatMonthDay, startOfWeek, todayISO } from '../dates.js';
+import { blockerRanking, isActiveDay } from '../stats.js';
 import * as storage from '../storage.js';
-import { buildWeeks } from '../weeks.js';
-import { buildGrid, buildLegend } from './grid.js';
-import { markFor } from './marks.js';
-import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
+import { buildWeek, endOfWeek } from '../weeks.js';
+import { dotKind } from './marks.js';
 
-export async function renderWeek(root, header, habit) {
-  await closeRecordForm();
+const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
+const DAYS_PER_WEEK = 7;
+const BLOCKER_TOP = 3;
+
+// 過去の週は押せるボタンで出す。1 年続けると 52 週あるので、古いほうは
+// 前の週ボタンで辿る。
+const PAST_WEEK_LIMIT = 8;
+
+// weekStart は null なら今週。
+export async function renderWeek(root, header, weekStart) {
   root.replaceChildren();
   header.replaceChildren();
-  header.append(weekHeader(habit));
 
   const today = todayISO();
-  const logs = await storage.getLogs(habit.id);
-  const weeks = buildWeeks(logs, { started_on: habit.started_on, today });
+  const thisWeek = startOfWeek(today);
+  const start = weekStart === null ? thisWeek : startOfWeek(weekStart);
+  const end = endOfWeek(start);
 
-  if (weeks.length === 0) {
+  // 全習慣をまたぐ画面なので、まとめて 1 回読む。
+  const db = await storage.snapshot();
+  const habits = [...db.habits].sort((a, b) => a.order - b.order);
+  const logsByHabit = groupByHabit(db.logs);
+
+  const first = habits.length === 0 ? thisWeek : startOfWeek(earliestStart(habits));
+  header.append(weekHeader(start, end, { first, last: thisWeek }));
+
+  if (habits.length === 0) {
     const note = document.createElement('p');
     note.className = 'placeholder';
-    note.textContent = `開始日は ${formatMonthDay(habit.started_on)} です。まだ始まっていません。`;
+    note.textContent = '習慣がまだありません。';
     root.append(note);
     return;
   }
 
-  const grid = buildGrid(weeks, logs, { started_on: habit.started_on, today });
-  root.append(grid, buildLegend());
-
-  const list = document.createElement('div');
-  list.className = 'week-list';
-
-  // 新しい週を上に出す。1 年続けると 52 週になり、古い順だと直近の週まで
-  // 延々スクロールすることになる。
-  const thisWeek = startOfWeek(today);
-  for (const week of [...weeks].reverse()) {
-    list.append(weekRow(habit, week, thisWeek, today));
-  }
-  root.append(list);
-
-  // 初期表示は右端（最新）。DOM に入ってからでないと幅が決まらない。
-  grid.scrollLeft = grid.scrollWidth;
+  root.append(...[
+    table(habits, logsByHabit, start, today),
+    blockerCard(db.logs, start, end),
+    pastWeeks(habits, logsByHabit, start, today, first),
+  ].filter((section) => section !== null));
 }
 
-function weekHeader(habit) {
+// --- ヘッダー -----------------------------------------------------------
+
+function weekHeader(start, end, limits) {
   const fragment = document.createDocumentFragment();
 
   const nav = document.createElement('nav');
   nav.className = 'header-nav';
   const back = document.createElement('a');
   back.className = 'back-link';
-  back.href = `#record/${encodeURIComponent(habit.id)}`;
-  back.textContent = '← 戻る';
+  back.href = '#';
+  back.textContent = '← 今日';
   nav.append(back);
 
   const main = document.createElement('div');
   main.className = 'header-main';
   const title = document.createElement('h1');
-  title.className = 'header-title small';
-  title.textContent = habit.name;
-  const sub = document.createElement('div');
-  sub.className = 'header-date';
-  sub.textContent = '週まとめ';
-  main.append(title, sub);
+  title.className = 'header-title';
+  title.textContent = '週まとめ';
+  const range = document.createElement('div');
+  range.className = 'header-date';
+  range.textContent = `${formatMonthDay(start)} – ${formatMonthDay(end)}`;
+  main.append(title, range);
 
-  fragment.append(nav, main);
+  const stack = document.createElement('div');
+  stack.className = 'header-stack';
+  stack.append(nav, main);
+
+  const actions = document.createElement('div');
+  actions.className = 'header-actions';
+  actions.append(
+    stepButton('前の週', addDays(start, -DAYS_PER_WEEK), start <= limits.first, 'M12.5 4.5 7 10l5.5 5.5'),
+    stepButton('次の週', addDays(start, DAYS_PER_WEEK), start >= limits.last, 'M7.5 4.5 13 10l-5.5 5.5'),
+  );
+
+  fragment.append(stack, actions);
   return fragment;
 }
 
-function weekRow(habit, week, thisWeek, today) {
-  const details = document.createElement('details');
-  details.className = 'week';
-  // 今週だけ開いた状態で出す。いちばんよく見る週なので。
-  details.open = week.start === thisWeek;
-
-  const summary = document.createElement('summary');
-
-  const range = document.createElement('span');
-  range.className = 'week-number';
-  range.textContent = `${formatMonthDay(week.start)} – ${formatMonthDay(week.end)}`;
-
-  summary.append(range);
-  details.append(summary);
-
-  // 1 件もログが無い週も、7 日分すべて未記入として出す。飛ばさない。
-  for (const day of week.days) {
-    details.append(dayRow(habit, day, today));
-  }
-  return details;
+// 無効にできるようボタンにする。リンクは disabled にできない。
+function stepButton(label, target, disabled, path) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'icon-button';
+  button.setAttribute('aria-label', label);
+  button.disabled = disabled;
+  button.append(chevron(path));
+  button.addEventListener('click', () => { location.hash = `week/${target}`; });
+  return button;
 }
 
-function dayRow(habit, day, today) {
+function chevron(path) {
+  return svg('2', [path]);
+}
+
+function svg(width, paths) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  element.setAttribute('viewBox', '0 0 20 20');
+  element.setAttribute('fill', 'none');
+  element.setAttribute('stroke', 'currentColor');
+  element.setAttribute('stroke-width', width);
+  element.setAttribute('stroke-linecap', 'round');
+  element.setAttribute('stroke-linejoin', 'round');
+  element.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    node.setAttribute('d', d);
+    element.append(node);
+  }
+  return element;
+}
+
+// --- 習慣 × 曜日の表 ----------------------------------------------------
+
+function table(habits, logsByHabit, start, today) {
+  const card = document.createElement('section');
+  card.className = 'week-table';
+
+  card.append(headRow());
+  for (const habit of habits) {
+    card.append(habitRow(habit, logsByHabit.get(habit.id) ?? [], start, today));
+  }
+  card.append(legend());
+  return card;
+}
+
+function headRow() {
   const row = document.createElement('div');
-  row.className = 'day';
+  row.className = 'week-row';
+  row.append(document.createElement('div')); // 習慣名の列
 
-  const head = document.createElement('button');
-  head.type = 'button';
-  head.className = 'day-head';
-  // まだ来ていない日は記録する対象ではない。未記入（やらなかった日）とは別物。
-  head.disabled = day.future;
-  // 開始前の日は判定の対象外。記録が残っていれば触れるようにしておく。
-  if (day.beforeStart) head.classList.add('before-start');
+  for (const label of WEEKDAY_LABELS) {
+    const cell = document.createElement('div');
+    cell.className = 'week-head-cell';
+    cell.textContent = label;
+    row.append(cell);
+  }
 
-  const label = document.createElement('span');
-  label.className = 'day-label';
-  label.textContent = formatDayLabel(day.date);
+  row.append(document.createElement('div')); // 達成数の列
+  return row;
+}
 
-  const mark = markFor(day.log);
-  const markEl = document.createElement('span');
-  markEl.className = `day-mark ${mark.className}`;
-  // 記録が無い「まだ来ていない日」と「開始前の日」は、未記入の — を出さない。
-  markEl.textContent = (day.future || day.beforeStart) && day.log === null ? '' : mark.text;
+function habitRow(habit, logs, start, today) {
+  const row = document.createElement('div');
+  row.className = 'week-row';
 
-  const excerpt = document.createElement('span');
-  excerpt.className = 'day-excerpt';
-  excerpt.textContent = day.log === null ? '' : firstLine(day.log.action);
+  const name = document.createElement('a');
+  name.className = 'week-habit';
+  name.href = `#record/${encodeURIComponent(habit.id)}`;
+  name.textContent = habit.name;
+  row.append(name);
 
-  head.append(label, markEl, excerpt);
-  row.append(head);
+  const week = buildWeek(logs, { weekStart: start, started_on: habit.started_on, today });
+  let count = 0;
+  for (const day of week.days) {
+    if (day.log !== null && isActiveDay(day.log.rating)) count += 1;
+    row.append(dayCell(habit, day));
+  }
 
-  if (!day.future) {
-    head.addEventListener('click', () => toggleDay(habit, row, day.date, today));
+  const total = document.createElement('div');
+  total.className = 'week-count';
+  total.textContent = `${count}/${DAYS_PER_WEEK}`;
+  row.append(total);
+
+  return row;
+}
+
+function dayCell(habit, day) {
+  // まだ来ていない日は記録する対象ではない。開始前の日も判定の対象外なので、
+  // どちらも未記入（やらなかった日）とは見た目を分ける。
+  const outside = day.future || day.beforeStart;
+
+  const cell = document.createElement(outside ? 'span' : 'a');
+  cell.className = 'week-cell';
+
+  if (outside) {
+    cell.classList.add('outside');
+  } else {
+    cell.href = `#record/${encodeURIComponent(habit.id)}/${day.date}`;
+    cell.setAttribute('aria-label', `${habit.name} ${formatMonthDay(day.date)}`);
+  }
+
+  // 範囲外の日は、記録が残っている場合だけ薄く出す。
+  if (!outside || day.log !== null) cell.append(markSvg(dotKind(day.log)));
+  return cell;
+}
+
+// ○ △ × と未記入の記号。文字ではなく図形で描く（フォントによる字形のばらつきを避ける）。
+function markSvg(kind) {
+  if (kind === 'none') {
+    const dot = document.createElement('span');
+    dot.className = 'week-mark week-mark-none';
+    return dot;
+  }
+
+  if (kind === 'done') {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    element.setAttribute('viewBox', '0 0 20 20');
+    element.setAttribute('fill', 'currentColor');
+    element.setAttribute('aria-hidden', 'true');
+    element.setAttribute('class', 'week-mark week-mark-done');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '10');
+    circle.setAttribute('cy', '10');
+    circle.setAttribute('r', '8');
+    element.append(circle);
+    return element;
+  }
+
+  const element = kind === 'partial'
+    ? svg('2.2', ['M10 3.5 17 16H3z'])
+    : svg('2.4', ['M5 5l10 10M15 5 5 15']);
+  element.setAttribute('class', `week-mark week-mark-${kind}`);
+  return element;
+}
+
+function legend() {
+  const row = document.createElement('div');
+  row.className = 'week-legend';
+
+  for (const [kind, label] of [['done', 'できた'], ['partial', '少し'], ['skip', 'できず'], ['none', '未記入']]) {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.append(markSvg(kind));
+
+    const text = document.createElement('span');
+    text.textContent = label;
+    item.append(text);
+
+    row.append(item);
   }
   return row;
 }
 
-async function toggleDay(habit, row, date) {
-  if (isOpenFor(habit.id, date)) {
-    await closeRecordForm();
-    return;
+// --- 今週多かった邪魔 ----------------------------------------------------
+
+function blockerCard(logs, from, to) {
+  const card = document.createElement('section');
+  card.className = 'blocker-card';
+
+  const title = document.createElement('h2');
+  title.className = 'card-title';
+  title.textContent = 'この週に多かった邪魔';
+  card.append(title);
+
+  const ranking = blockerRanking(logs, from, to).slice(0, BLOCKER_TOP);
+  if (ranking.length === 0) {
+    const note = document.createElement('p');
+    note.className = 'card-note';
+    note.textContent = 'この週はまだタグが付いていません。';
+    card.append(note);
+    return card;
   }
 
-  const holder = document.createElement('div');
-  holder.className = 'day-form';
-  const recordForm = await openRecordForm({
-    habit,
-    date,
-    onChange: () => refreshRow(habit, row, date),
-    onClose: () => holder.remove(),
-  });
-
-  holder.append(recordForm);
-  row.append(holder);
-  row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  // 棒の長さは 1 位を満幅にした相対値。回数そのものは右に数字で出す。
+  const max = ranking[0].count;
+  for (const { tag, count } of ranking) {
+    card.append(blockerRow(tag, count, max));
+  }
+  return card;
 }
 
-async function refreshRow(habit, row, date) {
-  const log = await storage.getLog(habit.id, date);
+function blockerRow(tag, count, max) {
+  const row = document.createElement('div');
+  row.className = 'blocker-row';
 
-  const mark = markFor(log);
-  const markEl = row.querySelector('.day-mark');
-  markEl.className = `day-mark ${mark.className}`;
-  markEl.textContent = mark.text;
+  const name = document.createElement('div');
+  name.className = 'blocker-tag';
+  name.textContent = tag;
 
-  row.querySelector('.day-excerpt').textContent = log === null ? '' : firstLine(log.action);
+  const track = document.createElement('div');
+  track.className = 'blocker-track';
+  const fill = document.createElement('div');
+  fill.className = 'blocker-fill';
+  fill.style.width = `${(count / max) * 100}%`;
+  track.append(fill);
+
+  const number = document.createElement('div');
+  number.className = 'blocker-count';
+  number.textContent = `×${count}`;
+
+  row.append(name, track, number);
+  return row;
 }
 
-function firstLine(text) {
-  return text.split('\n')[0].trim();
+// --- 過去の週 -----------------------------------------------------------
+
+function pastWeeks(habits, logsByHabit, start, today, first) {
+  const starts = [];
+  for (
+    let date = addDays(start, -DAYS_PER_WEEK);
+    date >= first && starts.length < PAST_WEEK_LIMIT;
+    date = addDays(date, -DAYS_PER_WEEK)
+  ) {
+    starts.push(date);
+  }
+  if (starts.length === 0) return null;
+
+  const box = document.createElement('section');
+  box.className = 'past-weeks';
+
+  const label = document.createElement('p');
+  label.className = 'sub-label';
+  label.textContent = '過去の週';
+  box.append(label);
+
+  for (const weekStart of starts) {
+    box.append(pastWeekLink(weekStart, habits, logsByHabit, today));
+  }
+  return box;
+}
+
+function pastWeekLink(weekStart, habits, logsByHabit, today) {
+  const link = document.createElement('a');
+  link.className = 'past-week';
+  link.href = `#week/${weekStart}`;
+
+  const range = document.createElement('span');
+  range.textContent = `${formatMonthDay(weekStart)} – ${formatMonthDay(endOfWeek(weekStart))}`;
+
+  const total = document.createElement('span');
+  total.className = 'past-week-total';
+  total.textContent = `${activeCount(weekStart, habits, logsByHabit, today)}/${habits.length * DAYS_PER_WEEK}`;
+
+  link.append(range, total);
+  return link;
+}
+
+// その週に全習慣で何日できたか。分母は習慣の数 × 7 のおおまかな目安で、
+// 週の途中で始めた習慣の分も引かない。
+function activeCount(weekStart, habits, logsByHabit, today) {
+  const end = endOfWeek(weekStart);
+
+  let count = 0;
+  for (const habit of habits) {
+    for (const log of logsByHabit.get(habit.id) ?? []) {
+      if (log.date < weekStart || log.date > end) continue;
+      if (log.date < habit.started_on || log.date > today) continue;
+      if (isActiveDay(log.rating)) count += 1;
+    }
+  }
+  return count;
+}
+
+// --- 内部 ---------------------------------------------------------------
+
+function groupByHabit(logs) {
+  const map = new Map();
+  for (const log of logs) {
+    const list = map.get(log.habit_id);
+    if (list === undefined) map.set(log.habit_id, [log]);
+    else list.push(log);
+  }
+  return map;
+}
+
+function earliestStart(habits) {
+  return habits.reduce((min, habit) => (habit.started_on < min ? habit.started_on : min), habits[0].started_on);
 }

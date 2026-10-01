@@ -71,14 +71,22 @@ function homeHeader(today) {
 
   const actions = document.createElement('div');
   actions.className = 'header-actions';
-  actions.append(addIconButton());
+  actions.append(weekIconLink(), addIconButton());
 
   fragment.append(main, actions);
   return fragment;
 }
 
-// 週まとめへのアイコンはデザインにあるが、いまの週まとめは習慣ごとの画面なので
-// ヘッダーからは出さない。全習慣をまとめた画面を作る ⑤ で足す。
+// 週まとめは全習慣をまとめた画面なので、習慣を選ばずにここから開ける。
+function weekIconLink() {
+  const link = document.createElement('a');
+  link.className = 'icon-button';
+  link.href = '#week';
+  link.setAttribute('aria-label', '週まとめ');
+  link.append(icon('M4 16V9', 'M10 16V4', 'M16 16v-5'));
+  return link;
+}
+
 function addIconButton() {
   const button = document.createElement('button');
   button.type = 'button';

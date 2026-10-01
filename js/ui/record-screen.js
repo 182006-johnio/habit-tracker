@@ -9,10 +9,11 @@
 import { formatMonthDayWeekday, formatTimestamp, todayISO } from '../dates.js';
 import { CUMULATIVE_GOAL, comebackCount, computeStats, tagUsage } from '../stats.js';
 import * as storage from '../storage.js';
+import { buildWeeks } from '../weeks.js';
 import { renderComeback } from './comeback.js';
 import { askConfirm } from './confirm.js';
+import { buildGrid, buildLegend } from './grid.js';
 import { formatIfThen } from './if-then.js';
-import { closeRecordForm } from './record.js';
 import { createTagInput } from './tags.js';
 
 const template = document.getElementById('record-screen-template');
@@ -25,9 +26,6 @@ const LABELS = {
 };
 
 export async function renderRecordScreen(root, header, habit, date) {
-  // 週まとめ画面に開いたままの記録フォームがあれば、書きかけを保存して閉じる。
-  await closeRecordForm();
-
   root.replaceChildren();
   header.replaceChildren();
 
@@ -81,7 +79,7 @@ export async function renderRecordScreen(root, header, habit, date) {
   drawRatings(state);
   drawSubmit(state);
 
-  root.append(screen, links(habit));
+  root.append(screen, history(logs, habit, today));
 }
 
 // --- ヘッダー -----------------------------------------------------------
@@ -143,17 +141,33 @@ function subLine(date, today, stats) {
   ].join('・');
 }
 
-function links(habit) {
-  const row = document.createElement('div');
-  row.className = 'card-links';
+// これまでの全体像。もとは習慣ごとの週まとめ画面に置いていたが、週まとめが全習慣の
+// 表になったので、その習慣の画面であるここに移した。
+function history(logs, habit, today) {
+  const box = document.createElement('section');
+  box.className = 'history';
 
-  const week = document.createElement('a');
-  week.className = 'week-link';
-  week.href = `#week/${encodeURIComponent(habit.id)}`;
-  week.textContent = '週まとめを見る';
+  const label = document.createElement('p');
+  label.className = 'sub-label';
+  label.textContent = 'これまで';
+  box.append(label);
 
-  row.append(week);
-  return row;
+  const weeks = buildWeeks(logs, { started_on: habit.started_on, today });
+  if (weeks.length === 0) {
+    const note = document.createElement('p');
+    note.className = 'card-note';
+    note.textContent = `開始日は ${formatMonthDayWeekday(habit.started_on)} です。まだ始まっていません。`;
+    box.append(note);
+    return box;
+  }
+
+  const grid = buildGrid(weeks, logs, { started_on: habit.started_on, today });
+  box.append(grid, buildLegend());
+
+  // 初期表示は右端（最新）。DOM に入ってからでないと幅が決まらないので、
+  // 呼び出し側が差し込んだあとに合わせる。
+  queueMicrotask(() => { grid.scrollLeft = grid.scrollWidth; });
+  return box;
 }
 
 // --- 画面の更新 ---------------------------------------------------------

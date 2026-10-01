@@ -40,7 +40,8 @@ async function start() {
   await render();
 }
 
-const WEEK = /^#week\/([^/]+)$/;
+// 週まとめは全習慣をまとめた画面。日付を省略すると今週。
+const WEEK = /^#week(?:\/([^/]+))?$/;
 // 日付を省略すると今日。週まとめの表から過去の日を開くときに付く。
 const RECORD = /^#record\/([^/]+)(?:\/([^/]+))?$/;
 const EDIT = /^#edit\/([^/]+)$/;
@@ -77,7 +78,13 @@ async function render() {
 
   const week = WEEK.exec(hash);
   if (week) {
-    await withHabit(decodeURIComponent(week[1]), (habit) => renderWeek(screen, header, habit));
+    const start = week[1] === undefined ? null : decodeURIComponent(week[1]);
+    // 以前の #week/<habit_id> を開いた場合もここで落ちてホームへ戻る。
+    if (start !== null && !isValidISO(start)) {
+      goHome();
+      return;
+    }
+    await renderWeek(screen, header, start);
     return;
   }
 
