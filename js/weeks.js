@@ -1,51 +1,47 @@
-// 週まとめ。started_on から暦日で 7 日ずつ区切り、UI がそのまま描ける形に組み立てる。
+// 週まとめ。月曜始まり・日曜終わりの暦週で区切り、UI がそのまま描ける形に組み立てる。
 //
-// 記録した日数ではなく暦日で数える。未記入の日も振り返りの対象として残すため、
-// 週は必ず 7 日分の枠を持ち、ログが無い日も飛ばさない。1 件もログが無い週も出す。
+// 区切りを全習慣で共通にするため、習慣の開始日は起点にしない。習慣ごとに境界が
+// ずれていると、ホームに並ぶ「今週 n / 7」が習慣ごとに違う期間を指すことになり、
+// 全習慣 × 曜日の表も作れない。
 //
-// 未記入と ×（rating 0）はここでは別物になる。log が null なら未記入、
-// log.rating が 0 なら × である。判定ロジックではどちらも断絶日として同じ扱いだが、
-// 表示上は区別すると仕様が定めている。
-//
-// 畳んだ一覧から 1 週だけ開く UI に対応できるよう、buildWeek を単独で呼べるようにしてある。
+// 週は必ず 7 日分の枠を持つ。ログが無い日も飛ばさず、1 件もログが無い週も出す。
+// 未記入と ×（rating 0）は別物になる（log が null か log.rating が 0 か）。
+// 判定ロジックではどちらも断絶日として同じ扱いだが、表示上は区別する。
 
-import { addDays, diffDays, isValidISO, todayISO } from './dates.js';
+import { addDays, isValidISO, startOfWeek, todayISO } from './dates.js';
 
 const DAYS_PER_WEEK = 7;
 
-// 週がいくつあるか。today を含む週までを数える。
-// today が started_on より前なら、まだ振り返る対象がないので 0。
-export function weekCount(started_on, today = todayISO()) {
-  requireDate(started_on, 'started_on');
-  requireDate(today, 'today');
+export { startOfWeek };
 
-  const elapsed = diffDays(started_on, today);
-  if (elapsed < 0) return 0;
-  return Math.floor(elapsed / DAYS_PER_WEEK) + 1;
+export function endOfWeek(iso) {
+  return addDays(startOfWeek(iso), DAYS_PER_WEEK - 1);
 }
 
-export function buildWeek(logs, { started_on, number, today = todayISO() } = {}) {
-  requireDate(started_on, 'started_on');
-  requireDate(today, 'today');
-  if (!Number.isInteger(number) || number < 1) {
-    throw new TypeError(`週番号には 1 以上の整数を渡してください: ${String(number)}`);
+// from と to に重なる週の月曜を、古い順に返す。
+export function listWeekStarts(from, to) {
+  requireDate(from, 'from');
+  requireDate(to, 'to');
+
+  const first = startOfWeek(from);
+  const last = startOfWeek(to);
+  if (last < first) return [];
+
+  const starts = [];
+  for (let date = first; date <= last; date = addDays(date, DAYS_PER_WEEK)) {
+    starts.push(date);
   }
-  return makeWeek(indexByDate(logs), started_on, number, today);
+  return starts;
 }
 
-export function buildWeeks(logs, { started_on, today = todayISO() } = {}) {
-  const count = weekCount(started_on, today);
+// 習慣 1 つ分の、ある週の 7 日分。
+export function buildWeek(logs, { weekStart, started_on, today = todayISO() } = {}) {
+  requireDate(weekStart, 'weekStart');
+  requireDate(started_on, 'started_on');
+  requireDate(today, 'today');
+
+  const start = startOfWeek(weekStart);
   const byDate = indexByDate(logs);
-
-  const weeks = [];
-  for (let number = 1; number <= count; number += 1) {
-    weeks.push(makeWeek(byDate, started_on, number, today));
-  }
-  return weeks;
-}
-
-function makeWeek(byDate, started_on, number, today) {
-  const start = addDays(started_on, (number - 1) * DAYS_PER_WEEK);
 
   const days = [];
   for (let offset = 0; offset < DAYS_PER_WEEK; offset += 1) {
@@ -53,17 +49,28 @@ function makeWeek(byDate, started_on, number, today) {
     days.push({
       date,
       log: byDate.get(date) ?? null,
-      // まだ来ていない日。未記入（やらなかった日）と同じ見た目にしないための印。
+      // 暦週にすると開始日が週の途中に来る。開始前の日を「未記入」と同じ見た目に
+      // すると、やらなかった日として読めてしまう。
+      beforeStart: date < started_on,
+      // まだ来ていない日。記録する対象ではない。
       future: date > today,
     });
   }
 
-  return { number, start, end: addDays(start, DAYS_PER_WEEK - 1), days };
+  return { start, end: addDays(start, DAYS_PER_WEEK - 1), days };
+}
+
+export function buildWeeks(logs, { started_on, today = todayISO() } = {}) {
+  requireDate(started_on, 'started_on');
+  requireDate(today, 'today');
+  if (today < started_on) return [];
+
+  return listWeekStarts(started_on, today)
+    .map((weekStart) => buildWeek(logs, { weekStart, started_on, today }));
 }
 
 // 日付をキーにした索引。storage が (habit_id, date) の一意を保証しているので、
 // 1 つの習慣のログであれば日付が重複することはない。
-// started_on より前のログは、どの週の枠とも日付が一致しないので自然に外れる。
 function indexByDate(logs) {
   return new Map(logs.map((log) => [log.date, log]));
 }

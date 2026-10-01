@@ -91,14 +91,14 @@ async function confirmDeleteHabit(habit) {
   return askConfirm(message, '削除する');
 }
 
-// 見出しに出る連続日数・挫折回数・今日の状態は、保存された値ではなく毎回の導出。
+// 見出しに出る連続日数・復帰回数・今日の状態は、保存された値ではなく毎回の導出。
 async function fillHead(card, habit, today) {
   const logs = await storage.getLogs(habit.id);
-  const { streak, setbacks } = computeStats(logs, { started_on: habit.started_on, today });
+  const { streak, comebacks } = computeStats(logs, { started_on: habit.started_on, today });
   const todayLog = logs.find((log) => log.date === today) ?? null;
 
   card.querySelector('.stat-streak .stat-value').textContent = String(streak);
-  card.querySelector('.stat-setback .stat-value').textContent = String(setbacks);
+  card.querySelector('.stat-comeback .stat-value').textContent = String(comebacks);
 
   const mark = markFor(todayLog);
   const todayMark = card.querySelector('.card-today');

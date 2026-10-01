@@ -66,6 +66,14 @@ export function nowTimestamp() {
   return new Date().toISOString();
 }
 
+// その日が属する週の月曜を返す。週は月曜始まり・日曜終わり。
+// 全習慣で共通の区切りにするため、習慣の開始日は起点にしない。
+export function startOfWeek(iso) {
+  const date = fromISO(requireISO(iso));
+  const offset = (date.getDay() + 6) % 7; // 月曜からの経過日数（日曜は 6）
+  return addDays(iso, -offset);
+}
+
 // --- 表示用の整形 -----------------------------------------------------
 // 日付の見せ方はここに集める。同じ表記が画面ごとにばらつかないようにするため。
 

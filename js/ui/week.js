@@ -3,7 +3,7 @@
 //
 // グリッド表示は後の段階でこの上に足す。
 
-import { formatDayLabel, formatMonthDay, todayISO } from '../dates.js';
+import { formatDayLabel, formatMonthDay, startOfWeek, todayISO } from '../dates.js';
 import * as storage from '../storage.js';
 import { buildWeeks } from '../weeks.js';
 import { buildGrid, buildLegend } from './grid.js';
@@ -32,10 +32,11 @@ export async function renderWeek(root, habit) {
   const list = document.createElement('div');
   list.className = 'week-list';
 
-  // 新しい週を上に出す。1 年続けると 52 週になり、Week 1 が上だと直近の週まで
+  // 新しい週を上に出す。1 年続けると 52 週になり、古い順だと直近の週まで
   // 延々スクロールすることになる。
+  const thisWeek = startOfWeek(today);
   for (const week of [...weeks].reverse()) {
-    list.append(weekRow(habit, week, weeks.length, today));
+    list.append(weekRow(habit, week, thisWeek, today));
   }
   root.append(list);
 
@@ -43,23 +44,19 @@ export async function renderWeek(root, habit) {
   grid.scrollLeft = grid.scrollWidth;
 }
 
-function weekRow(habit, week, weekCount, today) {
+function weekRow(habit, week, thisWeek, today) {
   const details = document.createElement('details');
   details.className = 'week';
   // 今週だけ開いた状態で出す。いちばんよく見る週なので。
-  details.open = week.number === weekCount;
+  details.open = week.start === thisWeek;
 
   const summary = document.createElement('summary');
 
-  const number = document.createElement('span');
-  number.className = 'week-number';
-  number.textContent = `Week ${week.number}`;
-
   const range = document.createElement('span');
-  range.className = 'week-range';
+  range.className = 'week-number';
   range.textContent = `${formatMonthDay(week.start)} – ${formatMonthDay(week.end)}`;
 
-  summary.append(number, range);
+  summary.append(range);
   details.append(summary);
 
   // 1 件もログが無い週も、7 日分すべて未記入として出す。飛ばさない。
@@ -78,6 +75,8 @@ function dayRow(habit, day, today) {
   head.className = 'day-head';
   // まだ来ていない日は記録する対象ではない。未記入（やらなかった日）とは別物。
   head.disabled = day.future;
+  // 開始前の日は判定の対象外。記録が残っていれば触れるようにしておく。
+  if (day.beforeStart) head.classList.add('before-start');
 
   const label = document.createElement('span');
   label.className = 'day-label';
@@ -86,7 +85,8 @@ function dayRow(habit, day, today) {
   const mark = markFor(day.log);
   const markEl = document.createElement('span');
   markEl.className = `day-mark ${mark.className}`;
-  markEl.textContent = day.future ? '' : mark.text;
+  // 記録が無い「まだ来ていない日」と「開始前の日」は、未記入の — を出さない。
+  markEl.textContent = (day.future || day.beforeStart) && day.log === null ? '' : mark.text;
 
   const excerpt = document.createElement('span');
   excerpt.className = 'day-excerpt';

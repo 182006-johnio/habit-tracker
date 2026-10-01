@@ -16,7 +16,7 @@
 
   /* 判定ロジックの分類に対応する色。グリッド表示でも同じ色を使う。 */
   --streak: #3fb950;  /* 連続 */
-  --setback: #a371f7; /* 復帰・挫折回数 */
+  --comeback: #a371f7; /* 復帰回数 */
   --skip: #f85149;    /* × */
 }
 
@@ -209,7 +209,7 @@ body {
 }
 
 .stat-streak .bolt { fill: var(--streak); }
-.stat-setback .bolt { fill: var(--setback); }
+.stat-comeback .bolt { fill: var(--comeback); }
 
 .mark-done { color: var(--streak); }
 .mark-partial { color: var(--streak); opacity: 0.55; }
@@ -353,7 +353,7 @@ body {
 }
 
 .cell-streak { background: var(--streak); }
-.cell-comeback { background: var(--setback); }
+.cell-comeback { background: var(--comeback); }
 .cell-skip { background: var(--skip); }
 
 /* 種類が色相、達成度が濃さ。△ は同じ色の薄い版。 */
@@ -429,6 +429,12 @@ body {
 
 .day-head:disabled {
   opacity: 0.35;
+}
+
+/* 開始前の日。暦週にすると週の途中から始まる習慣が出るため、
+   未記入（やらなかった日）と見た目を分ける。 */
+.day-head.before-start {
+  opacity: 0.4;
 }
 
 .day-label {

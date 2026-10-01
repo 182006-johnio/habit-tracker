@@ -1,4 +1,4 @@
-// 判定ロジック。連続日数と挫折回数を logs から導出する。
+// 判定ロジック。連続日数と復帰回数を logs から導出する。
 //
 // 副作用のない純関数として書く。カウンタを保存せず呼ばれるたびに数え直すので、
 // 何日ぶりにアプリを開いても正しい値になる。0 時の締め処理は要らない。
@@ -7,7 +7,9 @@
 // today を引数で受け取るのは、実行日に依存させないため。省略時は今日。
 
 import { RATING } from './schema.js';
-import { addDays, diffDays, isValidISO, todayISO } from './dates.js';
+import { addDays, diffDays, isValidISO, startOfWeek, todayISO } from './dates.js';
+
+const DAYS_PER_WEEK = 7;
 
 // 有効日 = rating が 2（○）または 1（△）の日。
 // 断絶日 = 有効日でない日。× の日と、ログが無い日の両方を含む。
@@ -36,8 +38,8 @@ export function currentStreak(logs, options) {
   return count;
 }
 
-// 一度切れてから戻ってきた回数。
-export function setbackCount(logs, options) {
+// 一度切れてから戻ってきた回数。画面では「復帰回数」と呼ぶ。
+export function comebackCount(logs, options) {
   const { started_on, today } = normalizeOptions(options);
   const dates = activeDates(logs, started_on, today);
 
@@ -55,8 +57,8 @@ export function setbackCount(logs, options) {
 // 地図に無い日は未記入。
 //
 // 緑（streak）と紫（comeback）の判別には前の有効日を見る必要があり、週をまたぐので
-// 週の中だけでは決まらない。数え方は setbackCount とまったく同じにしてあるので、
-// comeback の数がそのまま挫折回数と一致する。
+// 週の中だけでは決まらない。数え方は comebackCount とまったく同じにしてあるので、
+// comeback の数がそのまま復帰回数と一致する。
 export function classifyLogs(logs, options) {
   const { started_on, today } = normalizeOptions(options);
   const kinds = new Map();
@@ -76,11 +78,84 @@ export function classifyLogs(logs, options) {
   return kinds;
 }
 
+// 今週の状態。連続が切れた週は「今週 n / 7」を主役にするための判定。
+//
+// 切断 = その日が今日より前で有効日でない、または今日で rating 0（×）。
+// 当日の未記録はまだ結果が出ていないので切断にしない。× を付けた時点では、
+// 本人が断絶を記録しているので即座に切断とする。
+export function weekMode(logs, options) {
+  const { started_on, today } = normalizeOptions(options);
+  const start = startOfWeek(today);
+  const active = new Set(activeDates(logs, started_on, today));
+  const byDate = new Map(logs.map((log) => [log.date, log]));
+
+  let isWeekMode = false;
+  let weekCount = 0;
+
+  for (let offset = 0; offset < DAYS_PER_WEEK; offset += 1) {
+    const date = addDays(start, offset);
+    // 開始前とまだ来ていない日は対象外。
+    if (date < started_on || date > today) continue;
+
+    if (active.has(date)) {
+      weekCount += 1;
+      continue;
+    }
+    if (date < today || byDate.get(date)?.rating === RATING.SKIP) isWeekMode = true;
+  }
+
+  return { isWeekMode, weekCount };
+}
+
+// ○ と △ の日の累計。連続である必要はなく、切れても減らない。
+export function cumulativeDays(logs, options) {
+  const { started_on, today } = normalizeOptions(options);
+  return activeDates(logs, started_on, today).length;
+}
+
+// 邪魔したタグの集計。回数の降順、同数はタグ名順。
+//
+// 同数時は単純な文字コードで比べる。localeCompare は実行環境で結果が変わりうるが、
+// ここは見た目の細部より再現性を優先する。
+export function blockerRanking(logs, from, to) {
+  requireRange(from, to);
+
+  const counts = new Map();
+  for (const log of logs) {
+    if (log.date < from || log.date > to) continue;
+    if (!Array.isArray(log.blockerTags)) continue;
+    for (const tag of log.blockerTags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+
+  return [...counts]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || compareText(a.tag, b.tag));
+}
+
+function compareText(a, b) {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+function requireRange(from, to) {
+  if (!isValidISO(from) || !isValidISO(to)) {
+    throw new TypeError(
+      `期間が 'YYYY-MM-DD' 形式の実在する日付ではありません: ${String(from)} 〜 ${String(to)}`,
+    );
+  }
+}
+
+// カードが一度に必要とする値をまとめて返す。
 export function computeStats(logs, options) {
   const { started_on, today } = normalizeOptions(options);
+  const range = { started_on, today };
   return {
-    streak: currentStreak(logs, { started_on, today }),
-    setbacks: setbackCount(logs, { started_on, today }),
+    streak: currentStreak(logs, range),
+    comebacks: comebackCount(logs, range),
+    cumulative: cumulativeDays(logs, range),
+    ...weekMode(logs, range),
   };
 }
 

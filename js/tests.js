@@ -443,35 +443,35 @@ test('検証に通らない保存データも上書きしない', async () => {
 
 // --- stats（判定ロジック） ---------------------------------------------
 
-function assertStats(logs, today, streak, setbacks) {
+function assertStats(logs, today, streak, comebacks) {
   const actual = stats.computeStats(logs, { started_on: START, today });
-  assertEqual([actual.streak, actual.setbacks], [streak, setbacks], '[連続日数, 挫折回数]');
+  assertEqual([actual.streak, actual.comebacks], [streak, comebacks], '[連続日数, 復帰回数]');
 }
 
 // CLAUDE.md「テスト観点」の 6 ケース。
-test('観点1: 初日に ○ → 連続 1 / 挫折 0', () => {
+test('観点1: 初日に ○ → 連続 1 / 復帰 0', () => {
   assertStats(logsFrom('○'), day(1), 1, 0);
 });
 
-test('観点2: ○ ○ ○ → 連続 3 / 挫折 0', () => {
+test('観点2: ○ ○ ○ → 連続 3 / 復帰 0', () => {
   assertStats(logsFrom('○○○'), day(3), 3, 0);
 });
 
-test('観点3: ○ ○ × ○ → 連続 1 / 挫折 1', () => {
+test('観点3: ○ ○ × ○ → 連続 1 / 復帰 1', () => {
   assertStats(logsFrom('○○×○'), day(4), 1, 1);
 });
 
-test('観点4: ○ ○ (未記録) ○ → 連続 1 / 挫折 1', () => {
+test('観点4: ○ ○ (未記録) ○ → 連続 1 / 復帰 1', () => {
   assertStats(logsFrom('○○_○'), day(4), 1, 1);
 });
 
-test('観点5: ○ △ ○ → 連続 3 / 挫折 0', () => {
+test('観点5: ○ △ ○ → 連続 3 / 復帰 0', () => {
   assertStats(logsFrom('○△○'), day(3), 3, 0);
 });
 
-test('観点6: 3日間何もせず今日開いた → 連続 0 / 挫折は変わらず', () => {
+test('観点6: 3日間何もせず今日開いた → 連続 0 / 復帰は変わらず', () => {
   assertStats(logsFrom('○○○'), day(6), 0, 0);
-  // 次に ○ を付けた瞬間に挫折 +1。
+  // 次に ○ を付けた瞬間に復帰 +1。
   assertStats(logsFrom('○○○__○'), day(6), 1, 1);
 });
 
@@ -494,7 +494,7 @@ test('today より後のログは判定に使わない', () => {
   assertStats([...logsFrom('○○○'), future], day(3), 3, 0);
 });
 
-test('2 回復帰したら挫折は 2', () => {
+test('2 回戻ってきたら復帰は 2', () => {
   assertStats(logsFrom('○×○×○'), day(5), 1, 2);
 });
 
@@ -522,13 +522,13 @@ test('classifyLogs は連続・復帰・× を見分ける', () => {
   );
 });
 
-test('comeback の数は挫折回数と一致する', () => {
+test('comeback の数は復帰回数と一致する', () => {
   for (const pattern of ['○○×○_△○', '○×○×○', '○○○', '_○', '×××']) {
     const logs = logsFrom(pattern);
     const today = day(pattern.length);
     const kinds = stats.classifyLogs(logs, { started_on: START, today });
     const comebacks = [...kinds.values()].filter((kind) => kind === 'comeback').length;
-    assertEqual(comebacks, stats.setbackCount(logs, { started_on: START, today }), `パターン ${pattern}`);
+    assertEqual(comebacks, stats.comebackCount(logs, { started_on: START, today }), `パターン ${pattern}`);
   }
 });
 
@@ -546,7 +546,7 @@ test('classifyLogs は範囲外のログを含めない', () => {
 
 test('判定ロジックは不正な日付を例外にする', async () => {
   await assertThrows(() => stats.currentStreak([], { started_on: '2026-02-30' }), '不正な started_on');
-  await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');
+  await assertThrows(() => stats.comebackCount([], { started_on: START, today: 'きょう' }), '不正な today');
 });
 
 // --- v1 → v2 の移行 -----------------------------------------------------
@@ -646,96 +646,208 @@ test('新しいバージョンのデータは触らない', async () => {
   localStorage.removeItem(TEST_KEY);
 });
 
-// --- weeks（週まとめ） --------------------------------------------------
+// --- weekMode / cumulativeDays / blockerRanking -------------------------
 
-test('weekCount は暦日で 7 日ずつ区切る', () => {
-  assertEqual(weeks.weekCount(START, day(1)), 1, '開始日当日');
-  assertEqual(weeks.weekCount(START, day(7)), 1, '7 日目はまだ Week 1');
-  assertEqual(weeks.weekCount(START, day(8)), 2, '8 日目から Week 2');
-  assertEqual(weeks.weekCount(START, day(14)), 2, '14 日目はまだ Week 2');
-  assertEqual(weeks.weekCount(START, day(15)), 3, '15 日目から Week 3');
-  assertEqual(weeks.weekCount(START, dates.addDays(START, -1)), 0, '開始日より前は 0');
-});
+// 仕様のテスト表は「週の1日目を D1」とする。暦週なので D1 は月曜に置く。
+const D1 = '2026-09-28'; // 月曜
 
-test('Week 1 は 1〜7 日目、Week 2 は 8〜14 日目', () => {
-  const list = weeks.buildWeeks([], { started_on: START, today: day(14) });
-  assertEqual(list.length, 2, '週の数');
-  assertEqual([list[0].number, list[0].start, list[0].end], [1, day(1), day(7)], 'Week 1 の範囲');
-  assertEqual([list[1].number, list[1].start, list[1].end], [2, day(8), day(14)], 'Week 2 の範囲');
-});
+function weekDay(n) {
+  return dates.addDays(D1, n - 1);
+}
 
-test('週は必ず 7 日分の枠を持ち、日付が連続する', () => {
-  const list = weeks.buildWeeks(logsFrom('○'), { started_on: START, today: day(20) });
-  assertEqual(list.length, 3, '週の数');
-  list.forEach((week) => {
-    assertEqual(week.days.length, 7, `Week ${week.number} の枠の数`);
-    const expected = [0, 1, 2, 3, 4, 5, 6].map((offset) => dates.addDays(week.start, offset));
-    assertEqual(week.days.map((d) => d.date), expected, `Week ${week.number} の日付`);
+// 月曜から順に ○△×_ を並べてログにする。
+function weekLogs(pattern, offset = 0) {
+  const logs = [];
+  [...pattern].forEach((mark, index) => {
+    if (mark === '_') return;
+    logs.push(makeLog({ id: `w${offset}${index}`, date: dates.addDays(D1, offset + index), rating: MARKS[mark] }));
   });
+  return logs;
+}
+
+test('週モード 観点1: ○○○○ は通常モード', () => {
+  const result = stats.weekMode(weekLogs('○○○○'), { started_on: D1, today: weekDay(4) });
+  assertEqual(result, { isWeekMode: false, weekCount: 4 }, '切断なし');
+  assertEqual(stats.currentStreak(weekLogs('○○○○'), { started_on: D1, today: weekDay(4) }), 4, '連続4');
+});
+
+test('週モード 観点2: ○×○○ は週モードで 3/7、連続 2', () => {
+  const logs = weekLogs('○×○○');
+  assertEqual(stats.weekMode(logs, { started_on: D1, today: weekDay(4) }), { isWeekMode: true, weekCount: 3 }, '週モード');
+  assertEqual(stats.currentStreak(logs, { started_on: D1, today: weekDay(4) }), 2, '連続2を併記');
+});
+
+test('週モード 観点3: ○ 未記録 △ で当日未記録なら 2/7、連続 1', () => {
+  const logs = weekLogs('○_△');
+  assertEqual(stats.weekMode(logs, { started_on: D1, today: weekDay(4) }), { isWeekMode: true, weekCount: 2 }, '週モード');
+  assertEqual(stats.currentStreak(logs, { started_on: D1, today: weekDay(4) }), 1, '連続1を併記');
+});
+
+test('週モード 観点4: 前週の切断は持ち越さない', () => {
+  // 前週の日曜に ×、今週は月火水が ○
+  const logs = [
+    makeLog({ id: 'prev', date: dates.addDays(D1, -1), rating: schema.RATING.SKIP }),
+    ...weekLogs('○○○'),
+  ];
+  const started = dates.addDays(D1, -7);
+  assertEqual(stats.weekMode(logs, { started_on: started, today: weekDay(3) }), { isWeekMode: false, weekCount: 3 }, '通常モード');
+  assertEqual(stats.currentStreak(logs, { started_on: started, today: weekDay(3) }), 3, '連続3');
+});
+
+test('当日の未記録は切断にせず、当日の × は切断にする', () => {
+  const none = weekLogs('○○');
+  assertEqual(stats.weekMode(none, { started_on: D1, today: weekDay(3) }).isWeekMode, false, '当日未記録');
+
+  const skipped = weekLogs('○○×');
+  assertEqual(stats.weekMode(skipped, { started_on: D1, today: weekDay(3) }).isWeekMode, true, '当日 ×');
+});
+
+test('週モードは開始前の日を切断に数えない', () => {
+  // 水曜に始めて、水木が ○。月火は開始前なので切断ではない。
+  const logs = weekLogs('○○', 2);
+  const started = weekDay(3);
+  assertEqual(stats.weekMode(logs, { started_on: started, today: weekDay(4) }), { isWeekMode: false, weekCount: 2 }, '開始前は無視');
+});
+
+test('cumulativeDays は ○ と △ の総数を数える', () => {
+  const logs = weekLogs('○△×_○');
+  assertEqual(stats.cumulativeDays(logs, { started_on: D1, today: weekDay(5) }), 3, '○2 と △1');
+  assertEqual(stats.cumulativeDays([], { started_on: D1, today: weekDay(5) }), 0, 'ログ無し');
+});
+
+test('cumulativeDays は範囲外を数えない', () => {
+  const before = makeLog({ id: 'b', date: dates.addDays(D1, -1), rating: schema.RATING.DONE });
+  const future = makeLog({ id: 'f', date: weekDay(10), rating: schema.RATING.DONE });
+  const logs = [before, ...weekLogs('○○'), future];
+  assertEqual(stats.cumulativeDays(logs, { started_on: D1, today: weekDay(2) }), 2, '開始前と未来を除く');
+});
+
+test('blockerRanking は回数の降順、同数はタグ名順', () => {
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), blockerTags: ['疲労', 'SNS'] }),
+    makeLog({ id: '2', date: weekDay(2), blockerTags: ['疲労'] }),
+    makeLog({ id: '3', date: weekDay(3), blockerTags: ['疲労', 'SNS', 'AAA'] }),
+  ];
+  assertEqual(
+    stats.blockerRanking(logs, weekDay(1), weekDay(3)),
+    [{ tag: '疲労', count: 3 }, { tag: 'SNS', count: 2 }, { tag: 'AAA', count: 1 }],
+    '並び順',
+  );
+});
+
+test('blockerRanking は範囲外とタグ無しを除く', () => {
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), blockerTags: ['疲労'] }),
+    makeLog({ id: '2', date: weekDay(9), blockerTags: ['範囲外'] }),
+    makeLog({ id: '3', date: weekDay(2) }),
+  ];
+  assertEqual(stats.blockerRanking(logs, weekDay(1), weekDay(3)), [{ tag: '疲労', count: 1 }], '範囲内のみ');
+  assertEqual(stats.blockerRanking([], weekDay(1), weekDay(3)), [], 'ログ無し');
+});
+
+test('computeStats はカードに必要な値をまとめて返す', () => {
+  const logs = weekLogs('○×○');
+  const result = stats.computeStats(logs, { started_on: D1, today: weekDay(3) });
+  assertEqual(
+    [result.streak, result.comebacks, result.cumulative, result.isWeekMode, result.weekCount],
+    [1, 1, 2, true, 2],
+    '[連続, 復帰, 累計, 週モード, 今週]',
+  );
+});
+
+// --- weeks（カレンダー週） ----------------------------------------------
+
+// 2026-08-01 は土曜。その週の月曜は 2026-07-27。
+const SAT = '2026-08-01';
+const MON = '2026-07-27';
+const SUN = '2026-08-02';
+
+test('startOfWeek は月曜を返す', () => {
+  assertEqual(dates.startOfWeek(MON), MON, '月曜はそのまま');
+  assertEqual(dates.startOfWeek(SAT), MON, '土曜');
+  assertEqual(dates.startOfWeek(SUN), MON, '日曜は同じ週の末日');
+  assertEqual(dates.startOfWeek('2026-08-03'), '2026-08-03', '翌月曜から次の週');
+  assertEqual(dates.startOfWeek('2026-01-01'), '2025-12-29', '年をまたぐ');
+});
+
+test('listWeekStarts は重なる週の月曜を古い順に返す', () => {
+  assertEqual(weeks.listWeekStarts(SAT, SAT), [MON], '同じ日');
+  assertEqual(weeks.listWeekStarts(SAT, '2026-08-03'), [MON, '2026-08-03'], '週をまたぐ');
+  assertEqual(
+    weeks.listWeekStarts(MON, '2026-08-16'),
+    [MON, '2026-08-03', '2026-08-10'],
+    '3 週',
+  );
+  assertEqual(weeks.listWeekStarts('2026-08-10', SAT), [], 'to が from より前');
+});
+
+test('週は月曜始まりで必ず 7 日分の枠を持つ', () => {
+  const week = weeks.buildWeek([], { weekStart: SAT, started_on: SAT, today: '2026-08-20' });
+  assertEqual([week.start, week.end], [MON, SUN], '月曜から日曜');
+  assertEqual(week.days.length, 7, '枠の数');
+  assertEqual(
+    week.days.map((d) => d.date),
+    [MON, '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31', SAT, SUN],
+    '日付が連続する',
+  );
+});
+
+test('開始前の日には beforeStart、まだ来ていない日には future が付く', () => {
+  // 土曜に始めて、その週の金曜（＝翌週ではなく同じ週）はまだ来ていない…ではなく、
+  // today を 2026-07-31（金）にすると、土日が未来・月〜木が開始前になる。
+  const week = weeks.buildWeek([], { weekStart: MON, started_on: SAT, today: '2026-07-31' });
+  assertEqual(
+    week.days.map((d) => d.beforeStart),
+    [true, true, true, true, true, false, false],
+    '開始日より前だけ true',
+  );
+  assertEqual(
+    week.days.map((d) => d.future),
+    [false, false, false, false, false, true, true],
+    'today より後だけ true',
+  );
 });
 
 test('未記入の日は log が null になり、× とは区別される', () => {
-  const [week] = weeks.buildWeeks(logsFrom('○_×'), { started_on: START, today: day(3) });
-  assertEqual(week.days[0].log.rating, schema.RATING.DONE, '1 日目は ○');
-  assertEqual(week.days[1].log, null, '2 日目は未記入');
-  assertEqual(week.days[2].log.rating, schema.RATING.SKIP, '3 日目は ×');
+  const logs = [
+    makeLog({ id: 'a', date: SAT, rating: schema.RATING.DONE }),
+    makeLog({ id: 'b', date: SUN, rating: schema.RATING.SKIP }),
+  ];
+  const week = weeks.buildWeek(logs, { weekStart: MON, started_on: MON, today: SUN });
+  assertEqual(week.days[4].log, null, '金曜は未記入');
+  assertEqual(week.days[5].log.rating, schema.RATING.DONE, '土曜は ○');
+  assertEqual(week.days[6].log.rating, schema.RATING.SKIP, '日曜は ×');
 });
 
-test('1 件もログが無い週も空のまま出て、週番号が詰まらない', () => {
+test('buildWeeks は開始日の週から今日の週まで並べ、空の週も飛ばさない', () => {
   const logs = [
-    makeLog({ id: 'w1', date: day(1), rating: schema.RATING.DONE }),
-    makeLog({ id: 'w3', date: day(15), rating: schema.RATING.DONE }),
+    makeLog({ id: 'a', date: SAT, rating: schema.RATING.DONE }),
+    makeLog({ id: 'b', date: '2026-08-12', rating: schema.RATING.DONE }),
   ];
-  const list = weeks.buildWeeks(logs, { started_on: START, today: day(21) });
+  const list = weeks.buildWeeks(logs, { started_on: SAT, today: '2026-08-12' });
 
-  assertEqual(list.map((week) => week.number), [1, 2, 3], '週番号は詰まらない');
-  assertEqual(list[1].days.filter((d) => d.log !== null).length, 0, 'Week 2 は 1 件も無い');
+  assertEqual(list.map((w) => w.start), [MON, '2026-08-03', '2026-08-10'], '3 週');
+  assertEqual(list[1].days.filter((d) => d.log !== null).length, 0, '真ん中の週は空');
   assertEqual(list[1].days.length, 7, '空の週も 7 枠');
 });
 
-test('まだ来ていない日には future が付く', () => {
-  const [week] = weeks.buildWeeks([], { started_on: START, today: day(3) });
-  assertEqual(
-    week.days.map((d) => d.future),
-    [false, false, false, true, true, true, true],
-    'today より後だけ true になるはず',
-  );
-});
-
-test('started_on より前のログはどの週にも入らない', () => {
-  const before = makeLog({ id: 'lbefore', date: dates.addDays(START, -1), rating: schema.RATING.DONE });
-  const list = weeks.buildWeeks([before, ...logsFrom('○')], { started_on: START, today: day(7) });
-  const recorded = list[0].days.filter((d) => d.log !== null).map((d) => d.date);
-  assertEqual(recorded, [day(1)], '開始日より前の記録は現れない');
-});
-
 test('ログの並び順が日付順でなくても正しい日に入る', () => {
-  const list = weeks.buildWeeks(logsFrom('○△×○○○○○').reverse(), { started_on: START, today: day(8) });
-  assertEqual(
-    list[0].days.map((d) => d.log?.rating ?? null),
-    [2, 1, 0, 2, 2, 2, 2],
-    'Week 1 の並び',
-  );
-  assertEqual(list[1].days[0].log.rating, schema.RATING.DONE, 'Week 2 の 1 日目');
-  assertEqual(list[1].days[1].log, null, 'Week 2 の 2 日目は未記入');
-});
-
-test('buildWeek は指定した週だけを組み立てる', () => {
-  const week = weeks.buildWeek(logsFrom('○△×○○○○○'), { started_on: START, number: 2, today: day(8) });
-  assertEqual([week.number, week.start, week.end], [2, day(8), day(14)], 'Week 2 の範囲');
-  assertEqual(week.days[0].log.rating, schema.RATING.DONE, '8 日目');
-  assertEqual(week.days[1].log, null, '9 日目は未記入');
+  const logs = [
+    makeLog({ id: 'b', date: SUN, rating: schema.RATING.PARTIAL }),
+    makeLog({ id: 'a', date: SAT, rating: schema.RATING.DONE }),
+  ];
+  const week = weeks.buildWeek(logs, { weekStart: MON, started_on: MON, today: SUN });
+  assertEqual(week.days.map((d) => d.log?.rating ?? null), [null, null, null, null, null, 2, 1], '並び');
 });
 
 test('today が started_on より前なら週は無い', () => {
-  const list = weeks.buildWeeks(logsFrom('○'), { started_on: START, today: dates.addDays(START, -1) });
-  assertEqual(list, [], '空配列になるはず');
+  assertEqual(weeks.buildWeeks([], { started_on: SAT, today: MON }), [], '空配列になるはず');
 });
 
 test('週まとめは不正な引数を例外にする', async () => {
-  await assertThrows(() => weeks.weekCount('2026-02-30', START), '不正な started_on');
-  await assertThrows(() => weeks.buildWeek([], { started_on: START, number: 0, today: START }), '週番号 0');
-  await assertThrows(() => weeks.buildWeek([], { started_on: START, number: 1.5, today: START }), '整数でない週番号');
+  await assertThrows(() => dates.startOfWeek('2026-02-30'), '不正な日付');
+  await assertThrows(() => weeks.listWeekStarts('2026-02-30', SAT), '不正な from');
+  await assertThrows(() => weeks.buildWeek([], { weekStart: SAT, started_on: 'x', today: SAT }), '不正な started_on');
 });
 
 // --- export（エクスポート） --------------------------------------------

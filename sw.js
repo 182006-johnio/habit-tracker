@@ -8,7 +8,7 @@
 // 新しい版は次にアプリを開いたときに切り替わる。更新が 1 回遅れる代わりに、
 // 半端に新しい状態にはならない。更新するときは CACHE の名前を変える。
 
-const CACHE = 'habit-tracker-v7';
+const CACHE = 'habit-tracker-v8';
 
 const PRECACHE = [
   './',
