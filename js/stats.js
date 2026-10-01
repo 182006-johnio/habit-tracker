@@ -114,15 +114,19 @@ export function cumulativeDays(logs, options) {
 }
 
 // 邪魔したタグの集計。回数の降順、同数はタグ名順。
+export function blockerRanking(logs, from, to) {
+  requireRange(from, to);
+  return tagUsage(logs.filter((log) => log.date >= from && log.date <= to));
+}
+
+// 期間で絞らないタグの使用回数。記録画面で候補を出すときに使う。
+// タグの一覧は専用の保存領域を持たず、渡されたログから都度集計する。
 //
 // 同数時は単純な文字コードで比べる。localeCompare は実行環境で結果が変わりうるが、
 // ここは見た目の細部より再現性を優先する。
-export function blockerRanking(logs, from, to) {
-  requireRange(from, to);
-
+export function tagUsage(logs) {
   const counts = new Map();
   for (const log of logs) {
-    if (log.date < from || log.date > to) continue;
     if (!Array.isArray(log.blockerTags)) continue;
     for (const tag of log.blockerTags) {
       counts.set(tag, (counts.get(tag) ?? 0) + 1);

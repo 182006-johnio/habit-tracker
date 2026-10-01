@@ -99,6 +99,12 @@ export function formatDayLabel(iso) {
   return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAYS[date.getDay()]})`;
 }
 
+// 例: 10月1日（木）
+export function formatMonthDayWeekday(iso) {
+  const date = fromISO(requireISO(iso));
+  return `${date.getMonth() + 1}月${date.getDate()}日（${WEEKDAYS[date.getDay()]}）`;
+}
+
 // 例: 10月1日 木曜日
 export function formatLongDate(iso) {
   const date = fromISO(requireISO(iso));

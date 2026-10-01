@@ -9,6 +9,7 @@
 // ヘッダーの中身は画面ごとに違う（日付と見出し、戻ると習慣名、週送り）。枠だけ用意し、
 // 組み立ては各画面に任せる。
 
+import { isValidISO, todayISO } from './dates.js';
 import * as storage from './storage.js';
 import { renderEditScreen } from './ui/edit-screen.js';
 import { renderHome } from './ui/home.js';
@@ -39,39 +40,44 @@ async function start() {
   await render();
 }
 
-const ROUTES = [
-  { name: 'week', pattern: /^#week\/(.+)$/ },
-  { name: 'record', pattern: /^#record\/(.+)$/ },
-  { name: 'edit', pattern: /^#edit\/(.+)$/ },
-];
-
-function parseRoute(hash) {
-  for (const { name, pattern } of ROUTES) {
-    const match = pattern.exec(hash);
-    if (match) return { name, habitId: decodeURIComponent(match[1]) };
-  }
-  return { name: 'home' };
-}
+const WEEK = /^#week\/([^/]+)$/;
+// 日付を省略すると今日。週まとめの表から過去の日を開くときに付く。
+const RECORD = /^#record\/([^/]+)(?:\/([^/]+))?$/;
+const EDIT = /^#edit\/([^/]+)$/;
 
 async function render() {
-  const route = parseRoute(location.hash);
+  const hash = location.hash;
 
-  // 追加は対象の習慣がまだ無いので、照合より先に分ける。
-  if (route.name === 'edit' && route.habitId === 'new') {
-    await renderEditScreen(screen, header, null);
+  // 画面を切り替えたら先頭から見せる。ハッシュだけの移動ではブラウザが
+  // スクロール位置を引き継ぐので、下まで読んだあと別の画面に移ると途中から始まる。
+  window.scrollTo(0, 0);
+
+  const edit = EDIT.exec(hash);
+  if (edit) {
+    const id = decodeURIComponent(edit[1]);
+    // 追加は対象の習慣がまだ無いので、照合より先に分ける。
+    if (id === 'new') {
+      await renderEditScreen(screen, header, null);
+      return;
+    }
+    await withHabit(id, (habit) => renderEditScreen(screen, header, habit));
     return;
   }
 
-  if (route.name !== 'home') {
-    const habit = await storage.getHabit(route.habitId);
-    if (!habit) {
-      // 消した習慣のリンクを踏んだ場合など。履歴を汚さずホームに戻す。
+  const record = RECORD.exec(hash);
+  if (record) {
+    const date = record[2] === undefined ? todayISO() : decodeURIComponent(record[2]);
+    if (!isValidISO(date)) {
       goHome();
       return;
     }
-    if (route.name === 'week') await renderWeek(screen, header, habit);
-    else if (route.name === 'record') await renderRecordScreen(screen, header, habit);
-    else await renderEditScreen(screen, header, habit);
+    await withHabit(decodeURIComponent(record[1]), (habit) => renderRecordScreen(screen, header, habit, date));
+    return;
+  }
+
+  const week = WEEK.exec(hash);
+  if (week) {
+    await withHabit(decodeURIComponent(week[1]), (habit) => renderWeek(screen, header, habit));
     return;
   }
 
@@ -82,6 +88,16 @@ async function render() {
   }
 
   await renderHome(screen, header);
+}
+
+// 消した習慣のリンクを踏んだ場合など。履歴を汚さずホームに戻す。
+async function withHabit(id, draw) {
+  const habit = await storage.getHabit(id);
+  if (!habit) {
+    goHome();
+    return;
+  }
+  await draw(habit);
 }
 
 function goHome() {

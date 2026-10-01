@@ -176,6 +176,104 @@
   </form>
 </template>
 
+<!-- 記録画面。達成度を選んで「記録する」を押した時点で確定する（ホームのカードは
+     押した時点で保存するが、こちらは違う）。邪魔タグの入力は js/ui/tags.js が
+     tag-slot の位置に差し込む。 -->
+<template id="record-screen-template">
+  <div class="record-screen">
+    <section class="if-then-card" hidden>
+      <div class="if-then-label">きっかけ</div>
+      <div class="if-then-body">
+        <span class="if-then-trigger"></span>
+        <svg class="if-then-arrow" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9h11"></path><path d="M10 5l4 4-4 4"></path></svg>
+        <span class="if-then-action"></span>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2 class="block-title">達成度</h2>
+      <div class="rating-grid" role="group" aria-label="達成度">
+        <button type="button" class="rating-big" data-rating="2">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="10" cy="10" r="7"></circle></svg>
+          <span>できた</span>
+        </button>
+        <button type="button" class="rating-big" data-rating="1">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M10 3.5 17 16H3z"></path></svg>
+          <span>少し</span>
+        </button>
+        <button type="button" class="rating-big" data-rating="0">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"></path></svg>
+          <span>できず</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="block">
+      <label class="block-title" for="record-action"></label>
+      <input id="record-action" class="text-input" type="text" placeholder="例：配列の問題を1問解いた" autocomplete="off">
+    </section>
+
+    <section class="block">
+      <h2 class="block-title">邪魔したもの</h2>
+      <div class="tag-slot"></div>
+      <label class="sub-label" for="record-note">メモ（任意）</label>
+      <input id="record-note" class="text-input" type="text" placeholder="タグで表しきれないこと" autocomplete="off">
+    </section>
+
+    <section class="block">
+      <label class="block-title" for="record-fix"></label>
+      <textarea id="record-fix" class="text-area" rows="3" placeholder="もし〜なら、〜する"></textarea>
+    </section>
+
+    <p class="error record-error" hidden></p>
+
+    <div class="record-submit">
+      <button type="button" class="primary-button submit-button">記録する</button>
+      <p class="submit-note"></p>
+    </div>
+  </div>
+</template>
+
+<!-- 復帰画面。保存して復帰回数が増えたときだけ出す。 -->
+<template id="comeback-screen-template">
+  <div class="comeback">
+    <p class="comeback-habit"></p>
+
+    <div class="comeback-body">
+      <div class="comeback-headline">
+        <p class="comeback-greeting">おかえり</p>
+        <p class="comeback-count-row">
+          <span class="comeback-unit">復帰</span>
+          <span class="comeback-count"></span>
+          <span class="comeback-unit">回目</span>
+        </p>
+        <p class="comeback-note">途切れても戻ってきた回数が、この数字になる。</p>
+      </div>
+
+      <div class="comeback-card">
+        <div class="comeback-stat">
+          <div class="comeback-stat-name">今週</div>
+          <div class="comeback-stat-value accent">
+            <span class="comeback-week"></span>
+          </div>
+        </div>
+        <div class="comeback-stat">
+          <div class="comeback-stat-name">連続</div>
+          <div class="comeback-stat-value">
+            <span class="comeback-streak"></span>
+          </div>
+        </div>
+        <div class="comeback-gauge">
+          <div class="gauge-label"></div>
+          <div class="gauge-track"><div class="gauge-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="primary-button comeback-close">閉じる</button>
+  </div>
+</template>
+
 <!-- 記録フォーム。ホームの「今日の記録」と、週まとめの「過去の日の記録・修正」で
      同じものを使う。達成度を選ぶまでテキスト欄は無効にする（rating は必須項目
      なので、達成度が決まるまでログを作れない）。

@@ -874,6 +874,26 @@ test('cardMode は週モードを優先し、66 日で達成に切り替わる',
   assertEqual(stats.cardMode({ isWeekMode: true, cumulative: 80 }), 'week', '週モードが優先');
 });
 
+test('tagUsage は期間で絞らず、回数の降順・同数はタグ名順に返す', () => {
+  const logs = [
+    makeLog({ id: 'a', date: '2026-07-01', blockerTags: ['疲労', 'SNS'] }),
+    makeLog({ id: 'b', date: '2026-08-15', blockerTags: ['疲労'] }),
+    makeLog({ id: 'c', date: '2026-09-30', blockerTags: ['課題', 'SNS'] }),
+    makeLog({ id: 'd', date: '2026-10-01' }), // タグ無し
+  ];
+  assertEqual(
+    stats.tagUsage(logs),
+    [{ tag: 'SNS', count: 2 }, { tag: '疲労', count: 2 }, { tag: '課題', count: 1 }],
+    '全期間の集計',
+  );
+  assertEqual(stats.tagUsage([]), [], 'ログが無ければ空');
+});
+
+test('formatMonthDayWeekday は括弧付きの曜日を出す', () => {
+  assertEqual(dates.formatMonthDayWeekday('2026-10-01'), '10月1日（木）', '木曜');
+  assertEqual(dates.formatMonthDayWeekday('2026-09-28'), '9月28日（月）', '月曜');
+});
+
 test('formatLongDate は曜日まで出す', () => {
   assertEqual(dates.formatLongDate('2026-10-01'), '10月1日 木曜日', '木曜');
   assertEqual(dates.formatLongDate('2026-09-28'), '9月28日 月曜日', '月曜');

@@ -4,11 +4,12 @@
 // 押すと記録画面へ移る。
 
 import { formatLongDate, todayISO } from '../dates.js';
-import { CUMULATIVE_GOAL, cardMode, computeStats } from '../stats.js';
+import { cardMode, computeStats } from '../stats.js';
 import * as storage from '../storage.js';
 import { buildWeek } from '../weeks.js';
 import { backupSection } from './backup.js';
 import { confirmDeleteHabit } from './edit-screen.js';
+import { fillGauge } from './gauge.js';
 import { dotKind } from './marks.js';
 import { setRating } from './rating.js';
 import { closeOpenSwipe, enableSwipe } from './swipe.js';
@@ -136,12 +137,7 @@ async function fillCard(card, habit, today) {
   const main = card.querySelector('.card-main');
   main.replaceChildren(mainBlock(cardMode(stats), stats, logs, habit, today));
 
-  const reached = stats.cumulative >= CUMULATIVE_GOAL;
-  card.querySelector('.gauge-label').textContent = reached
-    ? `累計 ${stats.cumulative}日`
-    : `累計 ${stats.cumulative} / ${CUMULATIVE_GOAL}日`;
-  const ratio = Math.min(stats.cumulative, CUMULATIVE_GOAL) / CUMULATIVE_GOAL;
-  card.querySelector('.gauge-fill').style.width = `${ratio * 100}%`;
+  fillGauge(card, stats.cumulative);
 
   for (const button of card.querySelectorAll('.rating')) {
     const selected = todayLog !== null && Number(button.dataset.rating) === todayLog.rating;
