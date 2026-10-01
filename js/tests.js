@@ -49,6 +49,7 @@ async function freshStore() {
   // 退避キーも消す。残っていると「移行していないのに退避がある」状態になり、
   // 次のテストが前のテストの後始末に左右される。
   localStorage.removeItem(`${TEST_KEY}.backup.v1`);
+  localStorage.removeItem(`${TEST_KEY}.backup.import`);
   await storage.init({ key: TEST_KEY });
 }
 
@@ -848,6 +849,69 @@ test('週まとめは不正な引数を例外にする', async () => {
   await assertThrows(() => dates.startOfWeek('2026-02-30'), '不正な日付');
   await assertThrows(() => weeks.listWeekStarts('2026-02-30', SAT), '不正な from');
   await assertThrows(() => weeks.buildWeek([], { weekStart: SAT, started_on: 'x', today: SAT }), '不正な started_on');
+});
+
+// --- インポート（全置換） -----------------------------------------------
+
+test('parseBackup は v2 のファイルを受け入れる', async () => {
+  const result = await storage.parseBackup(JSON.stringify(sampleBackup()));
+  assertEqual([result.habits, result.logs], [1, 2], '件数');
+  assertEqual(result.db.schemaVersion, 2, 'schemaVersion');
+});
+
+test('parseBackup は v1 のファイルを移行して受け入れる', async () => {
+  const result = await storage.parseBackup(JSON.stringify(v1Data()));
+  assertEqual([result.habits, result.logs], [2, 1], '件数');
+  assertEqual(result.db.schemaVersion, 2, 'v2 に引き上がる');
+  assertEqual(result.db.logs[0].blockerNote, '寝落ち', 'blocker が移る');
+  assert(result.db.habits.every((h) => !('archived' in h)), 'archived は落ちる');
+});
+
+test('parseBackup は読めないファイルを拒否する', async () => {
+  await assertThrows(() => storage.parseBackup('{ 壊れた'), '壊れた JSON');
+  await assertThrows(() => storage.parseBackup('[]'), '配列');
+  await assertThrows(
+    () => storage.parseBackup(JSON.stringify({ schemaVersion: 2, habits: [{ id: 'h1' }], logs: [] })),
+    '検証に落ちる中身',
+  );
+  await assertThrows(
+    () => storage.parseBackup(JSON.stringify({ schemaVersion: 99, habits: [], logs: [] })),
+    '新しいバージョン',
+  );
+});
+
+test('replaceAll は全置換し、置き換える前を退避する', async () => {
+  await freshStore();
+  const habit = await storage.addHabit({ name: '消える習慣', started_on: '2026-08-01' });
+  await storage.putLog({ habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE });
+
+  const { db, habits, logs } = await storage.parseBackup(JSON.stringify(sampleBackup()));
+  const result = await storage.replaceAll(db);
+
+  assertEqual(result, { habits, logs }, '戻り値の件数');
+  assertEqual((await storage.getHabits()).map((h) => h.name), ['読書'], '中身が入れ替わる');
+  assertEqual(await storage.getCounts(), { habits: 1, logs: 2 }, '件数');
+
+  const saved = JSON.parse(localStorage.getItem(`${TEST_KEY}.backup.import`));
+  assertEqual(saved.habits.map((h) => h.name), ['消える習慣'], '置き換える前が退避されている');
+});
+
+test('replaceAll は不正な内容で保存を変えない', async () => {
+  await freshStore();
+  await storage.addHabit({ name: '残る習慣', started_on: '2026-08-01' });
+  const before = localStorage.getItem(TEST_KEY);
+
+  await assertThrows(() => storage.replaceAll({ schemaVersion: 2, habits: [{ id: 'x' }], logs: [] }), '不正な中身');
+  assertEqual(localStorage.getItem(TEST_KEY), before, '保存が変わってはいけない');
+});
+
+test('replaceAll は渡した入れ物を内部状態にしない', async () => {
+  await freshStore();
+  const { db } = await storage.parseBackup(JSON.stringify(sampleBackup()));
+  await storage.replaceAll(db);
+
+  db.habits[0].name = '書き換え';
+  assertEqual((await storage.getHabits())[0].name, '読書', '呼び出し側の書き換えが漏れてはいけない');
 });
 
 // --- export（エクスポート） --------------------------------------------

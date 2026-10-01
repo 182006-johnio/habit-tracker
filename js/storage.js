@@ -213,9 +213,65 @@ export async function deleteLog(habit_id, date) {
   return true;
 }
 
-// 全データのコピー。エクスポートと週まとめが後で使う。
+// 全データのコピー。エクスポートと週まとめが使う。
 export async function snapshot() {
   return clone(requireInit());
+}
+
+export async function getCounts() {
+  const state = requireInit();
+  return { habits: state.habits.length, logs: state.logs.length };
+}
+
+// --- インポート ---------------------------------------------------------
+
+// 書き出したファイルの中身を読み、現行スキーマに引き上げて検証する。
+// v1 のファイルも受け入れる（移行処理を通すため）。保存には触れない。
+export async function parseBackup(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (cause) {
+    throw new StorageError('ファイルを JSON として読めませんでした。', { cause });
+  }
+
+  const version = Number.isInteger(parsed?.schemaVersion) ? parsed.schemaVersion : 1;
+  if (version > SCHEMA_VERSION) {
+    throw new StorageError(
+      `ファイルが新しい形式です（version ${version}）。アプリを最新にしてください。`,
+    );
+  }
+
+  const db = version < SCHEMA_VERSION ? migrateDB(parsed) : parsed;
+  const { ok, errors } = validateDB(db);
+  if (!ok) throw new StorageError(`ファイルの内容が不正です:\n${describe(errors)}`);
+
+  return { db, habits: db.habits.length, logs: db.logs.length };
+}
+
+// 全置換。マージはしない。
+export async function replaceAll(db) {
+  const state = requireInit();
+
+  const { ok, errors } = validateDB(db);
+  if (!ok) throw new StorageError(`置き換える内容が不正です:\n${describe(errors)}`);
+
+  // 間違ったファイルを読み込んだときの戻り先。1 枠で、読み込むたびに上書きする。
+  // 保存領域には上限があるので何世代も持たない。
+  try {
+    localStorage.setItem(`${storageKey}.backup.import`, JSON.stringify(state));
+  } catch (cause) {
+    throw new StorageError('置き換える前のデータを退避できませんでした。中断します。', { cause });
+  }
+
+  commit(clone(db));
+  return { habits: db.habits.length, logs: db.logs.length };
+}
+
+// 検証エラーは数が多くなりうる。画面に出せる量に絞る。
+function describe(errors, limit = 5) {
+  if (errors.length <= limit) return errors.join('\n');
+  return `${errors.slice(0, limit).join('\n')}\nほか ${errors.length - limit} 件`;
 }
 
 // --- 内部 -------------------------------------------------------------

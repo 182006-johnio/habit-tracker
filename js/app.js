@@ -7,7 +7,6 @@
 // 無いが、ハッシュで履歴が積まれれば iOS の戻るスワイプが効く。
 
 import * as storage from './storage.js';
-import { backupButton } from './ui/backup.js';
 import { renderHome } from './ui/home.js';
 import { renderWeek } from './ui/week.js';
 
@@ -69,7 +68,6 @@ async function render() {
   }
 
   title.textContent = '習慣化トラッカー＋日記';
-  actions.append(backupButton());
   await renderHome(screen);
 }
 

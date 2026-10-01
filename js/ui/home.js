@@ -4,6 +4,7 @@
 import { todayISO } from '../dates.js';
 import { computeStats } from '../stats.js';
 import * as storage from '../storage.js';
+import { backupSection } from './backup.js';
 import { askConfirm } from './confirm.js';
 import { markFor } from './marks.js';
 import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
@@ -55,6 +56,8 @@ export async function renderHome(root) {
   }
 
   root.append(addButton());
+  // 習慣が 0 件でも必ず出す。読み込みがいちばん要るのはその状態のため。
+  root.append(backupSection(() => renderHome(currentRoot)));
 }
 
 // --- カード -------------------------------------------------------------
