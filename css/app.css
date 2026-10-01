@@ -73,9 +73,12 @@
 body {
   margin: 0;
   padding: 1rem;
-  /* ホーム画面から起動したときにノッチとホームインジケータを避ける */
+  /* ホーム画面から起動したときにノッチとホームインジケータを避ける。
+     左右も入れておく。縦固定でも、横向きで開いた一瞬は切り欠きに掛かる。 */
   padding-top: calc(1rem + env(safe-area-inset-top));
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
 
   background: var(--bg);
   color: var(--ink);

@@ -37,7 +37,28 @@ async function start() {
   boot.hidden = true;
   app.hidden = false;
   window.addEventListener('hashchange', render);
+  watchDateChange();
   await render();
+}
+
+// ホーム画面から起動した PWA は、閉じたつもりでも裏で止まっているだけで、
+// 戻ってきたときに読み込み直されるとは限らない。日付をまたいだまま開き直すと
+// 昨日の「今日の習慣」が出たままになる。
+//
+// 書きかけを消さないよう、やり直すのはホームにいるときだけにする。他の画面は
+// ホームに戻る操作で描き直される。
+function watchDateChange() {
+  let shownOn = todayISO();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+
+    const today = todayISO();
+    if (today === shownOn) return;
+    shownOn = today;
+
+    if (location.hash === '' || location.hash === '#') render();
+  });
 }
 
 // 週まとめは全習慣をまとめた画面。日付を省略すると今週。
