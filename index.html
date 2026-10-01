@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#111111">
+<meta name="color-scheme" content="light dark">
+<!-- ステータスバーの帯を地の色に合わせる。メディア指定を付けないと
+     どちらかのテーマで帯だけ浮く。 -->
+<meta name="theme-color" content="#EDF1F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1220" media="(prefers-color-scheme: dark)">
 <title>習慣</title>
 
 <link rel="manifest" href="manifest.webmanifest">
@@ -12,7 +15,8 @@
 <!-- iOS はホーム画面のアイコンに manifest ではなくこれを使う -->
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<!-- status-bar-style は固定色しか取れず、ライトでも黒帯になる。
+     theme-color のメディア指定に任せるため指定しない。 -->
 <meta name="apple-mobile-web-app-title" content="習慣">
 
 <link rel="stylesheet" href="css/app.css">

@@ -1,23 +1,65 @@
 /* ダーク固定。グリッドの未記入マスを背景と同化させる都合上、背景色を 1 つに定める。 */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
 
-  --bg: #111;
-  --surface: #171717;
-  --fg: #ddd;
-  --muted: #8b8b8b;
-  --line: #333;
-  --danger: #ff7b72;
+  /* デザイン引き渡し（design/HANDOFF.md）のトークン。
+     ライトを既定にし、ダークは prefers-color-scheme で上書きする。 */
+  --bg: #EDF1F7;
+  --card: #FFFFFF;
+  --field: #F5F7FB;
+  --border: #DDE4EE;
+  --border-strong: #CAD3E1;
+  --ink: #0F1B33;
+  --on-ink: #FFFFFF;
+  --muted: #52607A;
+  --streak: #2563EB;
+  --week: #1E3A8A;
+  --week-soft: #9DB8F2;
+  --track: #E1E8F2;
+  --danger: #B42318;
+
+  /* 押したときの地と、モーダルの背景暗転 */
+  --pressed: #E6ECF5;
+  --scrim: rgba(15, 27, 51, 0.45);
+
+  /* 判定の分類に対応する色。カードの稲妻・記号とグリッドで同じものを使う。
+     デザインは青系で統一されているが、ここだけは色が意味に対応していることを
+     優先する。「紫のマスの数＝復帰回数」はカードとグリッドで色が揃って初めて伝わる。 */
+  /* ライトの緑は #16A34A だと地とのコントラストが 2.91 で、図形に必要な 3:1 を
+     下回る。12px のマスが見分けづらくなるので一段濃くする。 */
+  --mark-streak: #15803D;
+  --mark-comeback: #7C3AED;
+  --mark-skip: #DC2626;
 
   /* スワイプで現れる削除ボタンの幅。swipe.js がこの値を読んで確定位置を決めるので、
      変えるときはここだけ直せばよい。 */
   --swipe-reveal: 96px;
+}
 
-  /* 判定ロジックの分類に対応する色。グリッド表示でも同じ色を使う。 */
-  --streak: #3fb950;  /* 連続 */
-  --comeback: #a371f7; /* 復帰回数 */
-  --skip: #f85149;    /* × */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B1220;
+    --card: #131C2E;
+    --field: #0F1829;
+    --border: #22304A;
+    --border-strong: #34445F;
+    --ink: #E8EDF5;
+    --on-ink: #0F1B33;
+    --muted: #9AA8C0;
+    --streak: #60A5FA;
+    --week: #BFD4FE;
+    --week-soft: #4A6BB5;
+    --track: #22304A;
+    --danger: #F87171;
+
+    --pressed: #1B2638;
+    --scrim: rgba(0, 0, 0, 0.6);
+
+    --mark-streak: #3FB950;
+    --mark-comeback: #A371F7;
+    --mark-skip: #F85149;
+  }
 }
 
 * {
@@ -36,7 +78,7 @@ body {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 
   background: var(--bg);
-  color: var(--fg);
+  color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   line-height: 1.6;
@@ -49,7 +91,7 @@ body {
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 
 #screen-title {
@@ -71,7 +113,7 @@ body {
 }
 
 #header-nav a:active {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 /* --- バックアップ --- */
@@ -90,7 +132,7 @@ body {
 .backup {
   margin-top: 1.5rem;
   padding-top: 0.875rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .backup h2 {
@@ -113,17 +155,17 @@ body {
 .backup-button {
   flex: 1;
   padding: 0.55rem 0.6rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: none;
-  color: var(--fg);
+  color: var(--ink);
   font: inherit;
   font-size: 0.9375rem;
 }
 
 .backup-button:active {
   border-color: var(--muted);
-  background: var(--surface);
+  background: var(--card);
 }
 
 .backup-status {
@@ -148,9 +190,9 @@ body {
 
 .card {
   position: relative;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
+  background: var(--card);
   overflow: hidden;
 }
 
@@ -162,7 +204,7 @@ body {
   width: var(--swipe-reveal);
   align-items: center;
   justify-content: center;
-  background: var(--skip);
+  background: var(--danger);
 }
 
 .trash-button {
@@ -178,12 +220,13 @@ body {
 .trash {
   width: 24px;
   height: 24px;
+  /* 赤い削除面の上に置くので、テーマに関係なく白で固定する */
   fill: #fff;
 }
 
 .card-surface {
   position: relative;
-  background: var(--surface);
+  background: var(--card);
   /* 縦スクロールはブラウザに任せ、横方向だけを拾う */
   touch-action: pan-y;
   transform: translateX(0);
@@ -210,7 +253,7 @@ body {
 }
 
 .card-head:active {
-  background: #1f1f1f;
+  background: var(--pressed);
 }
 
 .card-name {
@@ -246,19 +289,19 @@ body {
   height: 1em;
 }
 
-.stat-streak .bolt { fill: var(--streak); }
-.stat-comeback .bolt { fill: var(--comeback); }
+.stat-streak .bolt { fill: var(--mark-streak); }
+.stat-comeback .bolt { fill: var(--mark-comeback); }
 
-.mark-done { color: var(--streak); }
-.mark-partial { color: var(--streak); opacity: 0.55; }
-.mark-skip { color: var(--skip); }
+.mark-done { color: var(--mark-streak); }
+.mark-partial { color: var(--mark-streak); opacity: 0.55; }
+.mark-skip { color: var(--mark-skip); }
 .mark-none { color: var(--muted); }
 
 /* --- 開いたカードの中身 --- */
 
 .card-body {
   padding: 0 0.875rem 0.875rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
   padding-top: 0.875rem;
 }
 
@@ -270,7 +313,7 @@ body {
 .rating {
   flex: 1;
   padding: 0.6rem 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: none;
   color: var(--muted);
@@ -279,19 +322,19 @@ body {
 }
 
 .rating[data-rating='2'].selected {
-  border-color: var(--streak);
-  color: var(--streak);
+  border-color: var(--mark-streak);
+  color: var(--mark-streak);
 }
 
 .rating[data-rating='1'].selected {
-  border-color: var(--streak);
-  color: var(--streak);
+  border-color: var(--mark-streak);
+  color: var(--mark-streak);
   opacity: 0.7;
 }
 
 .rating[data-rating='0'].selected {
-  border-color: var(--skip);
-  color: var(--skip);
+  border-color: var(--mark-skip);
+  color: var(--mark-skip);
 }
 
 .recorded-at {
@@ -319,10 +362,10 @@ body {
   display: block;
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--field);
+  color: var(--ink);
   /* 16px を下回ると iOS が入力欄にズームする */
   font: inherit;
   resize: vertical;
@@ -334,7 +377,7 @@ body {
 
 .saved-note {
   margin: 0 0 0.5rem;
-  color: var(--streak);
+  color: var(--mark-streak);
   font-size: 0.8125rem;
 }
 
@@ -357,7 +400,7 @@ body {
 
 .week-link:active,
 .edit-link:active {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 /* --- グリッド表示 --- */
@@ -390,9 +433,9 @@ body {
   background: transparent;
 }
 
-.cell-streak { background: var(--streak); }
-.cell-comeback { background: var(--comeback); }
-.cell-skip { background: var(--skip); }
+.cell-streak { background: var(--mark-streak); }
+.cell-comeback { background: var(--mark-comeback); }
+.cell-skip { background: var(--mark-skip); }
 
 /* 種類が色相、達成度が濃さ。△ は同じ色の薄い版。 */
 .cell-partial { opacity: 0.45; }
@@ -420,9 +463,9 @@ body {
 }
 
 .week {
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
+  background: var(--card);
   overflow: hidden;
 }
 
@@ -443,7 +486,7 @@ body {
 }
 
 .day {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .day-head {
@@ -462,7 +505,7 @@ body {
 }
 
 .day-head:active {
-  background: #1f1f1f;
+  background: var(--pressed);
 }
 
 .day-head:disabled {
@@ -514,10 +557,10 @@ body {
 .order-buttons button {
   flex: 1;
   padding: 0.45rem 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: none;
-  color: var(--fg);
+  color: var(--ink);
   font: inherit;
 }
 
@@ -533,14 +576,14 @@ body {
   gap: 0.5rem;
   margin: 0.75rem 0;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .edit-actions button {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--fg);
+  color: var(--ink);
   font: inherit;
   font-size: 0.9375rem;
 }
@@ -557,7 +600,7 @@ body {
 .add-habit {
   width: 100%;
   padding: 0.7rem;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--border);
   border-radius: 10px;
   background: none;
   color: var(--muted);
@@ -565,7 +608,7 @@ body {
 }
 
 .add-habit:active {
-  color: var(--fg);
+  color: var(--ink);
   border-color: var(--muted);
 }
 
@@ -574,14 +617,14 @@ body {
 dialog {
   width: min(22rem, calc(100vw - 2rem));
   padding: 1rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #1a1a1a;
-  color: var(--fg);
+  background: var(--card);
+  color: var(--ink);
 }
 
 dialog::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
 }
 
 dialog h2 {
@@ -600,10 +643,10 @@ dialog input {
   width: 100%;
   margin-bottom: 0.75rem;
   padding: 0.5rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--field);
+  color: var(--ink);
   /* 16px を下回ると iOS が入力欄にズームする */
   font: inherit;
 }
@@ -618,15 +661,17 @@ dialog menu {
 
 dialog menu button {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: none;
-  color: var(--fg);
+  color: var(--ink);
   font: inherit;
 }
 
 dialog menu button[type='submit'] {
-  background: #2a2a2a;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 .error {
