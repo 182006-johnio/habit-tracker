@@ -851,6 +851,21 @@ test('週まとめは不正な引数を例外にする', async () => {
   await assertThrows(() => weeks.buildWeek([], { weekStart: SAT, started_on: 'x', today: SAT }), '不正な started_on');
 });
 
+test('cardMode は週モードを優先し、66 日で達成に切り替わる', () => {
+  assertEqual(stats.cardMode({ isWeekMode: false, cumulative: 0 }), 'streak', '通常');
+  assertEqual(stats.cardMode({ isWeekMode: true, cumulative: 0 }), 'week', '週モード');
+  assertEqual(stats.cardMode({ isWeekMode: false, cumulative: 65 }), 'streak', '65 日はまだ通常');
+  assertEqual(stats.cardMode({ isWeekMode: false, cumulative: 66 }), 'done', '66 日で達成');
+  assertEqual(stats.cardMode({ isWeekMode: false, cumulative: 80 }), 'done', '超えても達成');
+  // 達成していても連続が切れた週は立て直しのほうを出す。
+  assertEqual(stats.cardMode({ isWeekMode: true, cumulative: 80 }), 'week', '週モードが優先');
+});
+
+test('formatLongDate は曜日まで出す', () => {
+  assertEqual(dates.formatLongDate('2026-10-01'), '10月1日 木曜日', '木曜');
+  assertEqual(dates.formatLongDate('2026-09-28'), '9月28日 月曜日', '月曜');
+});
+
 // --- インポート（全置換） -----------------------------------------------
 
 test('parseBackup は v2 のファイルを受け入れる', async () => {

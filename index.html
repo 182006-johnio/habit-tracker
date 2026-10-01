@@ -24,11 +24,8 @@
 <body>
 
 <div id="app" hidden>
-  <header id="app-header">
-    <nav id="header-nav"></nav>
-    <h1 id="screen-title">習慣化トラッカー＋日記</h1>
-    <div id="header-actions"></div>
-  </header>
+  <!-- 中身は画面ごとに違うので、各画面が組み立てる -->
+  <header id="app-header"></header>
   <main id="screen"></main>
 
   <!-- 読み込み用。見えないが display:none にはしない。
@@ -103,8 +100,8 @@
 </div>
 
 <!-- 習慣カード。innerHTML を使わずに済むよう、骨組みはここに置いて複製する。
-     稲妻を緑と紫で出し分けるためインライン SVG にしている。絵文字の ⚡ は
-     iOS では色付き絵文字として描かれ、CSS で色を変えられない。 -->
+     稲妻とマークはインライン SVG。絵文字は iOS では色付き絵文字として描かれ、
+     CSS で色を変えられない。 -->
 <template id="habit-card-template">
   <article class="card">
     <!-- 左スワイプで表面が滑り、下から削除ボタンが出る -->
@@ -117,22 +114,69 @@
       </button>
     </div>
     <div class="card-surface">
-    <button type="button" class="card-head">
-      <span class="card-name"></span>
-      <span class="card-today"></span>
-      <span class="card-stats">
-        <span class="stat stat-streak" aria-label="連続日数">
-          <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
-          <span class="stat-value"></span>
-        </span>
-        <span class="stat stat-comeback" aria-label="復帰回数">
-          <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
-          <span class="stat-value"></span>
-        </span>
-      </span>
-    </button>
+      <div class="card-top">
+        <a class="card-name"></a>
+        <span class="card-comeback"></span>
+      </div>
+
+      <div class="card-main"></div>
+
+      <div class="card-gauge">
+        <div class="gauge-label"></div>
+        <div class="gauge-track"><div class="gauge-fill"></div></div>
+      </div>
+
+      <div class="ratings" role="group" aria-label="達成度">
+        <button type="button" class="rating" data-rating="2" aria-label="できた">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="10" cy="10" r="7"></circle></svg>
+        </button>
+        <button type="button" class="rating" data-rating="1" aria-label="少しできた">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M10 3.5 17 16H3z"></path></svg>
+        </button>
+        <button type="button" class="rating" data-rating="0" aria-label="できなかった">
+          <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"></path></svg>
+        </button>
+      </div>
     </div>
   </article>
+</template>
+
+<!-- カードのメイン表示。状態ごとに 1 つだけ使う。 -->
+<template id="card-main-streak-template">
+  <div class="main-streak">
+    <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
+    <span class="main-number"></span>
+    <span class="main-unit">日連続</span>
+  </div>
+</template>
+
+<template id="card-main-week-template">
+  <div class="main-week">
+    <div class="week-headline">
+      <span class="main-unit">今週</span>
+      <span class="main-number"></span>
+      <span class="main-of">/ 7</span>
+      <span class="main-sub"></span>
+    </div>
+    <div class="week-dots"></div>
+  </div>
+</template>
+
+<template id="card-main-done-template">
+  <div class="main-done">
+    <span class="done-badge">66日達成</span>
+    <span class="done-streak">
+      <span class="main-number"></span>
+      <span class="main-unit">日連続</span>
+    </span>
+  </div>
+</template>
+
+<template id="week-dot-template">
+  <div class="week-day">
+    <span class="dot"></span>
+    <span class="week-day-label"></span>
+  </div>
 </template>
 
 <!-- 記録フォーム。ホームの「今日の記録」と、週まとめの「過去の日の記録・修正」で

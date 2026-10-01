@@ -8,7 +8,7 @@
 // 新しい版は次にアプリを開いたときに切り替わる。更新が 1 回遅れる代わりに、
 // 半端に新しい状態にはならない。更新するときは CACHE の名前を変える。
 
-const CACHE = 'habit-tracker-v10';
+const CACHE = 'habit-tracker-v11';
 
 const PRECACHE = [
   './',
@@ -28,6 +28,9 @@ const PRECACHE = [
   './js/ui/home.js',
   './js/ui/marks.js',
   './js/ui/record.js',
+  './js/ui/record-screen.js',
+  './js/ui/rating.js',
+  './js/ui/edit-dialog.js',
   './js/ui/swipe.js',
   './js/ui/week.js',
   './favicon.ico',

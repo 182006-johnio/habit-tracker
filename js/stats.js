@@ -186,3 +186,16 @@ function normalizeOptions({ started_on, today = todayISO() } = {}) {
   }
   return { started_on, today };
 }
+
+// 66 日を一区切りとする累計の目標。
+export const CUMULATIVE_GOAL = 66;
+
+// カードのメイン表示をどれにするか。
+//
+// 週モードを優先する。連続が切れた週の立て直しにいちばん効く情報で、
+// 66 日達成のほうはゲージが満タンになっていることで常に見えているため。
+export function cardMode({ isWeekMode, cumulative }) {
+  if (isWeekMode) return 'week';
+  if (cumulative >= CUMULATIVE_GOAL) return 'done';
+  return 'streak';
+}

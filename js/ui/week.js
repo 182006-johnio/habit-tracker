@@ -10,9 +10,11 @@ import { buildGrid, buildLegend } from './grid.js';
 import { markFor } from './marks.js';
 import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
 
-export async function renderWeek(root, habit) {
+export async function renderWeek(root, header, habit) {
   await closeRecordForm();
   root.replaceChildren();
+  header.replaceChildren();
+  header.append(weekHeader(habit));
 
   const today = todayISO();
   const logs = await storage.getLogs(habit.id);
@@ -42,6 +44,31 @@ export async function renderWeek(root, habit) {
 
   // 初期表示は右端（最新）。DOM に入ってからでないと幅が決まらない。
   grid.scrollLeft = grid.scrollWidth;
+}
+
+function weekHeader(habit) {
+  const fragment = document.createDocumentFragment();
+
+  const nav = document.createElement('nav');
+  nav.className = 'header-nav';
+  const back = document.createElement('a');
+  back.className = 'back-link';
+  back.href = `#record/${encodeURIComponent(habit.id)}`;
+  back.textContent = '← 戻る';
+  nav.append(back);
+
+  const main = document.createElement('div');
+  main.className = 'header-main';
+  const title = document.createElement('h1');
+  title.className = 'header-title small';
+  title.textContent = habit.name;
+  const sub = document.createElement('div');
+  sub.className = 'header-date';
+  sub.textContent = '週まとめ';
+  main.append(title, sub);
+
+  fragment.append(nav, main);
+  return fragment;
 }
 
 function weekRow(habit, week, thisWeek, today) {

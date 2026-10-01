@@ -5,17 +5,19 @@
 //
 // 画面は location.hash で分ける。ホーム画面から起動した PWA にはブラウザの戻るボタンが
 // 無いが、ハッシュで履歴が積まれれば iOS の戻るスワイプが効く。
+//
+// ヘッダーの中身は画面ごとに違う（日付と見出し、戻ると習慣名、週送り）。枠だけ用意し、
+// 組み立ては各画面に任せる。
 
 import * as storage from './storage.js';
 import { renderHome } from './ui/home.js';
+import { renderRecordScreen } from './ui/record-screen.js';
 import { renderWeek } from './ui/week.js';
 
 const boot = document.getElementById('boot-status');
 const app = document.getElementById('app');
 const screen = document.getElementById('screen');
-const title = document.getElementById('screen-title');
-const nav = document.getElementById('header-nav');
-const actions = document.getElementById('header-actions');
+const header = document.getElementById('app-header');
 
 async function start() {
   boot.dataset.started = '1'; // index.html の「起動できたか」の見張りに知らせる
@@ -36,28 +38,31 @@ async function start() {
   await render();
 }
 
-// #week/<habit_id> だけを別画面にする。それ以外はホーム。
+const ROUTES = [
+  { name: 'week', pattern: /^#week\/(.+)$/ },
+  { name: 'record', pattern: /^#record\/(.+)$/ },
+];
+
 function parseRoute(hash) {
-  const match = /^#week\/(.+)$/.exec(hash);
-  return match ? { name: 'week', habitId: decodeURIComponent(match[1]) } : { name: 'home' };
+  for (const { name, pattern } of ROUTES) {
+    const match = pattern.exec(hash);
+    if (match) return { name, habitId: decodeURIComponent(match[1]) };
+  }
+  return { name: 'home' };
 }
 
 async function render() {
   const route = parseRoute(location.hash);
-  screen.replaceChildren();
-  nav.replaceChildren();
-  actions.replaceChildren();
 
-  if (route.name === 'week') {
+  if (route.name !== 'home') {
     const habit = await storage.getHabit(route.habitId);
     if (!habit) {
       // 消した習慣のリンクを踏んだ場合など。履歴を汚さずホームに戻す。
       goHome();
       return;
     }
-    title.textContent = habit.name;
-    nav.append(backLink());
-    await renderWeek(screen, habit);
+    if (route.name === 'week') await renderWeek(screen, header, habit);
+    else await renderRecordScreen(screen, header, habit);
     return;
   }
 
@@ -67,20 +72,12 @@ async function render() {
     history.replaceState(null, '', location.pathname + location.search);
   }
 
-  title.textContent = '習慣化トラッカー＋日記';
-  await renderHome(screen);
+  await renderHome(screen, header);
 }
 
 function goHome() {
   history.replaceState(null, '', location.pathname + location.search);
   render();
-}
-
-function backLink() {
-  const link = document.createElement('a');
-  link.href = '#';
-  link.textContent = '← 一覧';
-  return link;
 }
 
 // オフラインでも起動できるようにする。登録に失敗してもアプリは動くので、

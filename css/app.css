@@ -85,98 +85,86 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* --- ヘッダー（中身は画面ごとに違う） --- */
+
 #app-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
 }
 
-#screen-title {
-  flex: 1;
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
-}
-
-#header-nav:empty,
-#header-actions:empty {
+#app-header:empty {
   display: none;
 }
 
-#header-nav a {
+.header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.header-date {
   color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.header-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.header-title.small {
+  font-size: 1.375rem;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+}
+
+.back-link {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  padding-right: 0.25rem;
+  color: var(--ink);
   font-size: 0.9375rem;
+  font-weight: 600;
   text-decoration: none;
 }
 
-#header-nav a:active {
-  color: var(--ink);
-}
-
-/* --- バックアップ --- */
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.backup {
-  margin-top: 1.5rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--border);
-}
-
-.backup h2 {
-  margin: 0 0 0.35rem;
-  font-size: 0.9375rem;
-}
-
-.backup .note {
-  margin: 0 0 0.75rem;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-
-.backup-buttons {
+.header-actions {
   display: flex;
   gap: 0.5rem;
 }
 
-.backup-button {
-  flex: 1;
-  padding: 0.55rem 0.6rem;
+.icon-button {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.9375rem;
-}
-
-.backup-button:active {
-  border-color: var(--muted);
+  border-radius: 14px;
   background: var(--card);
+  color: var(--ink);
 }
 
-.backup-status {
-  margin: 0.6rem 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  white-space: pre-wrap;
+.icon-button.primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
-.backup-status.error {
-  color: var(--danger);
+.icon-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* --- 習慣カード --- */
@@ -184,14 +172,14 @@ body {
 .card-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
 .card {
   position: relative;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 20px;
   background: var(--card);
   overflow: hidden;
 }
@@ -226,6 +214,10 @@ body {
 
 .card-surface {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.875rem;
   background: var(--card);
   /* 縦スクロールはブラウザに任せ、横方向だけを拾う */
   touch-action: pan-y;
@@ -238,64 +230,229 @@ body {
   transition: none;
 }
 
-.card-head {
-  display: grid;
-  grid-template-columns: 1fr auto;
+.card-top {
+  display: flex;
   align-items: center;
-  gap: 0.1rem 0.75rem;
-  width: 100%;
-  padding: 0.75rem 0.875rem;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-
-.card-head:active {
-  background: var(--pressed);
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .card-name {
-  grid-column: 1;
-  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.card-comeback {
+  color: var(--muted);
+  font-size: 0.8125rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.card-today {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: center;
-  font-size: 1.25rem;
-}
+/* --- カードのメイン表示 --- */
 
-.card-stats {
-  display: flex;
-  grid-column: 1;
-  grid-row: 2;
-  align-items: center;
-  gap: 1rem;
-}
-
-.stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
+.main-number {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.bolt {
-  width: 1em;
-  height: 1em;
+.main-unit {
+  font-size: 0.9375rem;
+  font-weight: 700;
 }
 
-.stat-streak .bolt { fill: var(--mark-streak); }
-.stat-comeback .bolt { fill: var(--mark-comeback); }
+.main-streak {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  color: var(--streak);
+}
 
-.mark-done { color: var(--mark-streak); }
-.mark-partial { color: var(--mark-streak); opacity: 0.55; }
-.mark-skip { color: var(--mark-skip); }
-.mark-none { color: var(--muted); }
+.main-streak .bolt {
+  width: 22px;
+  height: 26px;
+  align-self: center;
+  /* ① で決めた案B。グリッドと同じ緑で、色と意味の対応を通す。 */
+  fill: var(--mark-streak);
+}
+
+.main-week {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.week-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  color: var(--week);
+}
+
+.main-of {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.main-sub {
+  margin-left: 0.375rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.week-dots {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+/* ドットは評価（○ △ × 未記入）を表す。グリッドの緑紫は連続か復帰かという
+   別の軸なので、色体系を分けている。 */
+.dot-done { background: var(--week); }
+.dot-partial { background: var(--week-soft); }
+.dot-skip { border: 2px solid var(--muted); background: var(--card); }
+.dot-none { background: var(--track); }
+
+.week-day-label {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.main-done {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.done-badge {
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.done-streak {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  color: var(--streak);
+}
+
+.done-streak .main-number {
+  font-size: 1.75rem;
+}
+
+.done-streak .main-unit {
+  font-size: 0.875rem;
+}
+
+/* --- 66日ゲージ --- */
+
+.card-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.gauge-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.gauge-fill {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+/* --- 空の状態 --- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.125rem;
+  padding: 3rem 0 2rem;
+  text-align: center;
+}
+
+.empty-dots {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.empty-dot {
+  width: 28px;
+  height: 28px;
+  border: 2px dashed var(--muted);
+  border-radius: 999px;
+}
+
+.empty-dot.filled {
+  border: 0;
+  background: var(--ink);
+}
+
+.empty-heading {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 800;
+}
+
+.empty-note {
+  max-width: 280px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.primary-button {
+  width: 100%;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+}
 
 /* --- 開いたカードの中身 --- */
 
@@ -306,35 +463,34 @@ body {
 }
 
 .ratings {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
 .rating {
-  flex: 1;
-  padding: 0.6rem 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: none;
-  color: var(--muted);
+  display: flex;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
   font: inherit;
   font-size: 1.25rem;
 }
 
-.rating[data-rating='2'].selected {
-  border-color: var(--mark-streak);
-  color: var(--mark-streak);
+.rating svg {
+  width: 20px;
+  height: 20px;
 }
 
-.rating[data-rating='1'].selected {
-  border-color: var(--mark-streak);
-  color: var(--mark-streak);
-  opacity: 0.7;
-}
-
-.rating[data-rating='0'].selected {
-  border-color: var(--mark-skip);
-  color: var(--mark-skip);
+/* 選択中は地と文字を反転させる。デザインの未選択／選択の出し分け。 */
+.rating.selected {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 .recorded-at {
@@ -701,5 +857,67 @@ dialog menu button[type='submit'] {
 }
 
 #boot-status.error {
+  color: var(--danger);
+}
+
+/* --- バックアップ --- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.backup {
+  margin-top: 1.5rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--border);
+}
+
+.backup h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9375rem;
+}
+
+.backup .note {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.backup-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.backup-button {
+  flex: 1;
+  height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.backup-button:active {
+  background: var(--pressed);
+}
+
+.backup-status {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+}
+
+.backup-status.error {
   color: var(--danger);
 }

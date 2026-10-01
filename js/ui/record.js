@@ -5,7 +5,7 @@
 
 import { formatTimestamp, todayISO } from '../dates.js';
 import * as storage from '../storage.js';
-import { askConfirm } from './confirm.js';
+import { setRating } from './rating.js';
 
 const template = document.getElementById('record-form-template');
 
@@ -88,26 +88,15 @@ function fill(state) {
 }
 
 async function onRating(state, rating) {
-  const { habit, date, element, log } = state;
-
-  if (log !== null && log.rating === rating) {
-    // 二度押しは取り消し。× と未記入は別物なので、達成度の付け替えでは戻せない。
-    const hasText = [...element.querySelectorAll('.field')].some((field) => field.value.trim() !== '');
-    if (hasText && !(await askConfirm('記入したテキストも一緒に消えます。この日の記録を消しますか？'))) {
-      return;
-    }
-    await storage.deleteLog(habit.id, date);
-    state.log = null;
-  } else {
-    // 表示中のテキストとタグは引き継ぐ。達成度だけ差し替える形にする。
-    state.log = await storage.putLog({
-      habit_id: habit.id,
-      date,
-      rating,
-      blockerTags: log?.blockerTags ?? [],
-      ...readFields(element),
-    });
-  }
+  // 付け外しの扱いはカードと共通にする（js/ui/rating.js）。
+  // 入力中のテキストを引き継ぐため、保存済みの値ではなく画面の値を渡す。
+  state.log = await setRating({
+    habit: state.habit,
+    date: state.date,
+    rating,
+    log: state.log,
+    fields: readFields(state.element),
+  });
 
   fill(state);
   await state.onChange?.();

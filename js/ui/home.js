@@ -1,49 +1,50 @@
-// ホーム画面。習慣カードの一覧、習慣の追加、カードを開いての今日の記録、習慣の管理。
-// 記録フォーム本体は record.js にある（週まとめと共有）。
+// ホーム画面（今日の習慣）。
+//
+// カードは展開しない。○△× が常に見えていて押せば即座に保存され、習慣名を
+// 押すと記録画面へ移る。
 
-import { todayISO } from '../dates.js';
-import { computeStats } from '../stats.js';
+import { formatLongDate, todayISO } from '../dates.js';
+import { CUMULATIVE_GOAL, cardMode, computeStats } from '../stats.js';
 import * as storage from '../storage.js';
+import { buildWeek } from '../weeks.js';
 import { backupSection } from './backup.js';
-import { askConfirm } from './confirm.js';
-import { markFor } from './marks.js';
-import { closeRecordForm, isOpenFor, openRecordForm } from './record.js';
+import { confirmDeleteHabit, openEditDialog } from './edit-dialog.js';
+import { dotKind } from './marks.js';
+import { setRating } from './rating.js';
 import { closeOpenSwipe, enableSwipe } from './swipe.js';
 
 const cardTemplate = document.getElementById('habit-card-template');
+const mainTemplates = {
+  streak: document.getElementById('card-main-streak-template'),
+  week: document.getElementById('card-main-week-template'),
+  done: document.getElementById('card-main-done-template'),
+};
+const dotTemplate = document.getElementById('week-dot-template');
 
-const dialog = document.getElementById('add-habit-dialog');
-const form = document.getElementById('add-habit-form');
-const nameInput = document.getElementById('habit-name');
-const startedOnInput = document.getElementById('habit-started-on');
-const errorBox = document.getElementById('add-habit-error');
-const cancelButton = document.getElementById('add-habit-cancel');
+const addDialog = document.getElementById('add-habit-dialog');
+const addForm = document.getElementById('add-habit-form');
+const addName = document.getElementById('habit-name');
+const addStartedOn = document.getElementById('habit-started-on');
+const addError = document.getElementById('add-habit-error');
+const addCancel = document.getElementById('add-habit-cancel');
 
-const editDialog = document.getElementById('edit-habit-dialog');
-const editForm = document.getElementById('edit-habit-form');
-const editName = document.getElementById('edit-habit-name');
-const editStartedOn = document.getElementById('edit-habit-started-on');
-const editPosition = document.getElementById('edit-habit-position');
-const editUp = document.getElementById('edit-habit-up');
-const editDown = document.getElementById('edit-habit-down');
-const editError = document.getElementById('edit-habit-error');
-const editDelete = document.getElementById('edit-habit-delete');
-const editCancel = document.getElementById('edit-habit-cancel');
+// 週の曜日ラベル。週は月曜始まり。
+const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
 
 let currentRoot = null;
 let wired = false;
-let editing = null;
 
-export async function renderHome(root) {
+export async function renderHome(root, header) {
   currentRoot = root;
   wireOnce();
   closeOpenSwipe();
-  await closeRecordForm();
   root.replaceChildren();
+  header.replaceChildren();
+
+  const today = todayISO();
+  header.append(homeHeader(today));
 
   const habits = await storage.getHabits();
-  const today = todayISO();
-
   if (habits.length === 0) {
     root.append(emptyState());
   } else {
@@ -55,25 +56,141 @@ export async function renderHome(root) {
     root.append(list);
   }
 
-  root.append(addButton());
   // 習慣が 0 件でも必ず出す。読み込みがいちばん要るのはその状態のため。
-  root.append(backupSection(() => renderHome(currentRoot)));
+  root.append(backupSection(() => renderHome(currentRoot, header)));
+}
+
+function homeHeader(today) {
+  const fragment = document.createDocumentFragment();
+
+  const main = document.createElement('div');
+  main.className = 'header-main';
+
+  const date = document.createElement('div');
+  date.className = 'header-date';
+  date.textContent = formatLongDate(today);
+
+  const title = document.createElement('h1');
+  title.className = 'header-title';
+  title.textContent = '今日の習慣';
+
+  main.append(date, title);
+
+  const actions = document.createElement('div');
+  actions.className = 'header-actions';
+  actions.append(addIconButton());
+
+  fragment.append(main, actions);
+  return fragment;
+}
+
+// 週まとめへのアイコンはデザインにあるが、いまの週まとめは習慣ごとの画面なので
+// ヘッダーからは出さない。全習慣をまとめた画面を作る ⑤ で足す。
+function addIconButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'icon-button primary';
+  button.setAttribute('aria-label', '習慣を追加');
+  button.append(icon('M10 4v12', 'M4 10h12'));
+  button.addEventListener('click', openAddDialog);
+  return button;
+}
+
+function icon(...paths) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2.2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
 }
 
 // --- カード -------------------------------------------------------------
 
 async function habitCard(habit, today) {
   const card = cardTemplate.content.firstElementChild.cloneNode(true);
-  card.querySelector('.card-name').textContent = habit.name;
-  await fillHead(card, habit, today);
 
-  card.querySelector('.card-head').addEventListener('click', () => toggleCard(habit, card, today));
+  const name = card.querySelector('.card-name');
+  name.textContent = habit.name;
+  name.href = `#record/${encodeURIComponent(habit.id)}`;
 
-  // 展開中はスワイプを受け付けない。入力中に消えるのを防ぐため。
-  enableSwipe(card.querySelector('.card-surface'), { locked: () => isOpenFor(habit.id, today) });
+  await fillCard(card, habit, today);
+
+  for (const button of card.querySelectorAll('.rating')) {
+    button.addEventListener('click', () => onRating(card, habit, today, Number(button.dataset.rating)));
+  }
+
+  enableSwipe(card.querySelector('.card-surface'));
   card.querySelector('.trash-button').addEventListener('click', () => deleteFromSwipe(habit));
 
   return card;
+}
+
+// 連続日数・復帰回数・累計は保存された値ではなく毎回の導出。
+async function fillCard(card, habit, today) {
+  const logs = await storage.getLogs(habit.id);
+  const stats = computeStats(logs, { started_on: habit.started_on, today });
+  const todayLog = logs.find((log) => log.date === today) ?? null;
+
+  card.querySelector('.card-comeback').textContent = `復帰 ${stats.comebacks}回`;
+
+  const main = card.querySelector('.card-main');
+  main.replaceChildren(mainBlock(cardMode(stats), stats, logs, habit, today));
+
+  const reached = stats.cumulative >= CUMULATIVE_GOAL;
+  card.querySelector('.gauge-label').textContent = reached
+    ? `累計 ${stats.cumulative}日`
+    : `累計 ${stats.cumulative} / ${CUMULATIVE_GOAL}日`;
+  const ratio = Math.min(stats.cumulative, CUMULATIVE_GOAL) / CUMULATIVE_GOAL;
+  card.querySelector('.gauge-fill').style.width = `${ratio * 100}%`;
+
+  for (const button of card.querySelectorAll('.rating')) {
+    const selected = todayLog !== null && Number(button.dataset.rating) === todayLog.rating;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+}
+
+function mainBlock(mode, stats, logs, habit, today) {
+  const block = mainTemplates[mode].content.firstElementChild.cloneNode(true);
+
+  if (mode === 'streak') {
+    block.querySelector('.main-number').textContent = String(stats.streak);
+    return block;
+  }
+
+  if (mode === 'done') {
+    block.querySelector('.main-number').textContent = String(stats.streak);
+    return block;
+  }
+
+  block.querySelector('.main-number').textContent = String(stats.weekCount);
+  block.querySelector('.main-sub').textContent = `連続 ${stats.streak}日`;
+
+  const week = buildWeek(logs, { weekStart: today, started_on: habit.started_on, today });
+  const dots = block.querySelector('.week-dots');
+  week.days.forEach((day, index) => {
+    const dot = dotTemplate.content.firstElementChild.cloneNode(true);
+    dot.querySelector('.dot').classList.add(`dot-${dotKind(day.log)}`);
+    dot.querySelector('.week-day-label').textContent = WEEKDAY_LABELS[index];
+    dots.append(dot);
+  });
+  return block;
+}
+
+async function onRating(card, habit, today, rating) {
+  const logs = await storage.getLogs(habit.id);
+  const log = logs.find((candidate) => candidate.date === today) ?? null;
+
+  await setRating({ habit, date: today, rating, log });
+  await fillCard(card, habit, today);
 }
 
 async function deleteFromSwipe(habit) {
@@ -82,232 +199,93 @@ async function deleteFromSwipe(habit) {
     return;
   }
   await storage.deleteHabit(habit.id);
-  await renderHome(currentRoot);
+  await rerender();
 }
 
-// スワイプからの削除と、編集モーダルからの削除で同じ確認を出す。
-async function confirmDeleteHabit(habit) {
-  const logs = await storage.getLogs(habit.id);
-  const message = logs.length === 0
-    ? `「${habit.name}」を削除しますか？`
-    : `「${habit.name}」を削除します。記録 ${logs.length} 件も一緒に消えます。`;
-  return askConfirm(message, '削除する');
-}
-
-// 見出しに出る連続日数・復帰回数・今日の状態は、保存された値ではなく毎回の導出。
-async function fillHead(card, habit, today) {
-  const logs = await storage.getLogs(habit.id);
-  const { streak, comebacks } = computeStats(logs, { started_on: habit.started_on, today });
-  const todayLog = logs.find((log) => log.date === today) ?? null;
-
-  card.querySelector('.stat-streak .stat-value').textContent = String(streak);
-  card.querySelector('.stat-comeback .stat-value').textContent = String(comebacks);
-
-  const mark = markFor(todayLog);
-  const todayMark = card.querySelector('.card-today');
-  todayMark.textContent = mark.text;
-  todayMark.className = `card-today ${mark.className}`;
-}
-
-async function toggleCard(habit, card, today) {
-  closeOpenSwipe();
-  if (isOpenFor(habit.id, today)) {
-    await closeRecordForm();
-    return;
-  }
-
-  const body = document.createElement('div');
-  body.className = 'card-body';
-  const recordForm = await openRecordForm({
-    habit,
-    date: today,
-    // 達成度が変わると連続日数と今日の状態が変わる。一覧を描き直すと展開が閉じ、
-    // 入力中のフォーカスも飛ぶので、この見出しだけ更新する。
-    onChange: () => fillHead(card, habit, today),
-    onClose: () => body.remove(),
-  });
-
-  body.append(recordForm, cardLinks(habit));
-  card.querySelector('.card-surface').append(body);
-  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-}
-
-function cardLinks(habit) {
-  const links = document.createElement('div');
-  links.className = 'card-links';
-
-  const week = document.createElement('a');
-  week.className = 'week-link';
-  week.href = `#week/${encodeURIComponent(habit.id)}`;
-  week.textContent = '週まとめを見る';
-
-  const edit = document.createElement('button');
-  edit.type = 'button';
-  edit.className = 'edit-link';
-  edit.textContent = '編集';
-  edit.addEventListener('click', () => openEdit(habit));
-
-  links.append(week, edit);
-  return links;
-}
-
-// --- 空の状態と追加 -----------------------------------------------------
+// --- 空の状態 -----------------------------------------------------------
 
 function emptyState() {
   const box = document.createElement('div');
   box.className = 'empty';
 
+  const dots = document.createElement('div');
+  dots.className = 'empty-dots';
+  for (const filled of [true, false, false]) {
+    const dot = document.createElement('span');
+    dot.className = filled ? 'empty-dot filled' : 'empty-dot';
+    dots.append(dot);
+  }
+
   const heading = document.createElement('p');
-  heading.textContent = 'まだ習慣がありません。';
+  heading.className = 'empty-heading';
+  heading.textContent = '習慣はまだない';
 
   const note = document.createElement('p');
-  note.className = 'note';
-  note.textContent = '下のボタンから追加してください。';
+  note.className = 'empty-note';
+  note.textContent = '続けたいことを1つと、それを始めるきっかけを決めて登録する。';
 
-  box.append(heading, note);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'primary-button';
+  button.textContent = '最初の習慣を追加';
+  button.addEventListener('click', openAddDialog);
+
+  box.append(dots, heading, note, button);
   return box;
 }
 
-function addButton() {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'add-habit';
-  button.textContent = '＋ 習慣を追加';
-  button.addEventListener('click', openDialog);
-  return button;
+// --- 習慣の追加 ---------------------------------------------------------
+
+function openAddDialog() {
+  addForm.reset();
+  addStartedOn.value = todayISO();
+  hideAddError();
+  addDialog.showModal();
 }
 
-function openDialog() {
-  form.reset();
-  startedOnInput.value = todayISO();
-  hideError();
-  dialog.showModal();
-}
-
-async function onSubmit(event) {
+async function onAddSubmit(event) {
   event.preventDefault();
-  hideError();
+  hideAddError();
 
-  const name = nameInput.value.trim();
+  const name = addName.value.trim();
   if (name === '') {
-    showError('名前を入力してください。');
+    showAddError('名前を入力してください。');
     return;
   }
 
   try {
-    await storage.addHabit({ name, started_on: startedOnInput.value });
+    await storage.addHabit({ name, started_on: addStartedOn.value });
   } catch (error) {
     // 保存に失敗した場合はモーダルを閉じない。入力を失わせないため。
-    showError(error.message);
+    showAddError(error.message);
     return;
   }
 
-  dialog.close();
-  await renderHome(currentRoot);
+  addDialog.close();
+  await rerender();
 }
 
-function showError(message) {
-  errorBox.textContent = message;
-  errorBox.hidden = false;
+function showAddError(message) {
+  addError.textContent = message;
+  addError.hidden = false;
 }
 
-function hideError() {
-  errorBox.textContent = '';
-  errorBox.hidden = true;
+function hideAddError() {
+  addError.textContent = '';
+  addError.hidden = true;
 }
 
-// --- 習慣の編集 ---------------------------------------------------------
-
-async function openEdit(habit) {
-  editing = habit;
-  editName.value = habit.name;
-  editStartedOn.value = habit.started_on;
-  hideEditError();
-
-  await refreshPosition();
-  editDialog.showModal();
+// 記録画面など別の場所から編集したあとも、戻ってきたら最新を描く。
+export async function rerender() {
+  if (currentRoot === null) return;
+  await renderHome(currentRoot, document.getElementById('app-header'));
 }
 
-async function refreshPosition() {
-  const siblings = await storage.getHabits();
-  const index = siblings.findIndex((habit) => habit.id === editing.id);
+export { openEditDialog };
 
-  editPosition.textContent = `${index + 1} / ${siblings.length}`;
-  editUp.disabled = index <= 0;
-  editDown.disabled = index >= siblings.length - 1;
-}
-
-async function moveEditing(delta) {
-  const siblings = await storage.getHabits();
-  const index = siblings.findIndex((habit) => habit.id === editing.id);
-  const target = index + delta;
-  if (target < 0 || target >= siblings.length) return;
-
-  // 隣と order を入れ替える。order は連番とは限らない（削除で歯抜けになる）が、
-  // 値そのものを交換するので問題にならない。
-  const moving = siblings[index];
-  const neighbour = siblings[target];
-  await storage.updateHabit(moving.id, { order: neighbour.order });
-  await storage.updateHabit(neighbour.id, { order: moving.order });
-
-  editing = await storage.getHabit(editing.id);
-  await refreshPosition();
-}
-
-async function deleteEditing() {
-  if (!(await confirmDeleteHabit(editing))) return;
-  await storage.deleteHabit(editing.id);
-  await closeEdit();
-}
-
-async function onEditSubmit(event) {
-  event.preventDefault();
-  hideEditError();
-
-  const name = editName.value.trim();
-  if (name === '') {
-    showEditError('名前を入力してください。');
-    return;
-  }
-
-  try {
-    await storage.updateHabit(editing.id, { name, started_on: editStartedOn.value });
-  } catch (error) {
-    showEditError(error.message);
-    return;
-  }
-  await closeEdit();
-}
-
-// 並べ替えや休止はモーダルの中で既に反映されているので、閉じたら必ず描き直す。
-async function closeEdit() {
-  if (editDialog.open) editDialog.close();
-  editing = null;
-  await renderHome(currentRoot);
-}
-
-function showEditError(message) {
-  editError.textContent = message;
-  editError.hidden = false;
-}
-
-function hideEditError() {
-  editError.textContent = '';
-  editError.hidden = true;
-}
-
-// 一覧は描き直されるが、モーダルの購読は 1 回だけ張る。
 function wireOnce() {
   if (wired) return;
   wired = true;
-
-  form.addEventListener('submit', onSubmit);
-  cancelButton.addEventListener('click', () => dialog.close());
-
-  editForm.addEventListener('submit', onEditSubmit);
-  editCancel.addEventListener('click', closeEdit);
-  editDialog.addEventListener('cancel', closeEdit);
-  editUp.addEventListener('click', () => moveEditing(-1));
-  editDown.addEventListener('click', () => moveEditing(1));
-  editDelete.addEventListener('click', deleteEditing);
+  addForm.addEventListener('submit', onAddSubmit);
+  addCancel.addEventListener('click', () => addDialog.close());
 }
