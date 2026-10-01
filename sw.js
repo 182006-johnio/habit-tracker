@@ -1,14 +1,14 @@
 // Service Worker。オフラインでも起動できるようにする。
 //
-// ネットワーク優先（タイムアウト付き）でキャッシュに落ちる。キャッシュ優先にすると
-// 更新が次回起動まで届かず「古い版に張り付く」事故が起きる。記録を扱うアプリで、
-// 直したバグが届かないのは実害が大きい。全体で数十 KB しかないので、毎回取りに
-// 行っても通信量は問題にならない。
+// アプリのファイル一式を 1 つの版としてまとめて保存し、取り出すときもその版から
+// 揃って返す。1 ファイルごとに新旧を判断すると、電波が不安定なときに新しい版と
+// 古い版が混ざり、モジュールの import が食い違ってアプリが起動しなくなる。
+// 2026-10-01 に実際に起きた（新しい storage.js と古い schema.js の組み合わせ）。
 //
-// 更新するときは CACHE の名前を変える。古いキャッシュは activate で消える。
+// 新しい版は次にアプリを開いたときに切り替わる。更新が 1 回遅れる代わりに、
+// 半端に新しい状態にはならない。更新するときは CACHE の名前を変える。
 
-const CACHE = 'habit-tracker-v5';
-const NETWORK_TIMEOUT = 3000;
+const CACHE = 'habit-tracker-v7';
 
 const PRECACHE = [
   './',
@@ -36,10 +36,19 @@ const PRECACHE = [
   './icons/icon-512.png',
 ];
 
+// パス → 保存したときの URL。?cb=... が付いていても同じファイルとして拾うため、
+// 照合はクエリを含まない pathname で行う。
+const PRECACHED = new Map(PRECACHE.map((path) => {
+  const href = new URL(path, self.location.href).href;
+  return [new URL(href).pathname, href];
+}));
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      // cache: 'reload' を付けないと、ブラウザの HTTP キャッシュにある古いファイルで
+      // 新しい版を作ってしまい、版をまとめる意味が無くなる。
+      .then((cache) => cache.addAll(PRECACHE.map((path) => new Request(path, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -54,38 +63,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  // 書き込み系と外部への通信には触れない（このアプリに外部通信は無いが念のため）。
   if (request.method !== 'GET') return;
-  if (new URL(request.url).origin !== self.location.origin) return;
 
-  event.respondWith(networkFirst(request));
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  const href = PRECACHED.get(url.pathname);
+  // precache に無いもの（tests.html など）は素通しにしてネットワークへ。
+  if (href) event.respondWith(fromCache(href, request));
 });
 
-async function networkFirst(request) {
+async function fromCache(href, request) {
   const cache = await caches.open(CACHE);
-
-  try {
-    const response = await withTimeout(fetch(request), NETWORK_TIMEOUT);
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  } catch {
-    // 電波が悪いだけの場合もここに来る。キャッシュがあればそれを返す。
-    // ignoreSearch を付けるのは、?cb=... のようなクエリ付きで開かれても
-    // 同じファイルとして拾えるようにするため。
-    const cached = await cache.match(request, { ignoreSearch: true });
-    if (cached) return cached;
-
-    if (request.mode === 'navigate') {
-      const shell = await cache.match('./index.html');
-      if (shell) return shell;
-    }
-    throw new Error('オフラインで、キャッシュにもありません');
-  }
-}
-
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
+  const response = await cache.match(href);
+  // 版が揃っていれば必ず入っている。欠けていたときだけネットワークに頼る。
+  return response ?? fetch(request);
 }
