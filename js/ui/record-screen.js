@@ -5,7 +5,6 @@
 
 import { formatLongDate, todayISO } from '../dates.js';
 import * as storage from '../storage.js';
-import { openEditDialog } from './edit-dialog.js';
 import { closeRecordForm, openRecordForm } from './record.js';
 
 export async function renderRecordScreen(root, header, habit) {
@@ -56,21 +55,10 @@ function links(habit) {
   week.href = `#week/${encodeURIComponent(habit.id)}`;
   week.textContent = '週まとめを見る';
 
-  const edit = document.createElement('button');
-  edit.type = 'button';
+  const edit = document.createElement('a');
   edit.className = 'edit-link';
+  edit.href = `#edit/${encodeURIComponent(habit.id)}`;
   edit.textContent = '編集';
-  edit.addEventListener('click', () => openEditDialog(habit, {
-    onClose: async (result) => {
-      // 削除されたらこの画面は意味を失うのでホームへ戻す。
-      if (result?.deleted) {
-        location.hash = '';
-        return;
-      }
-      const updated = await storage.getHabit(habit.id);
-      if (updated) await renderRecordScreen(document.getElementById('screen'), document.getElementById('app-header'), updated);
-    },
-  }));
 
   row.append(week, edit);
   return row;

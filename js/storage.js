@@ -108,9 +108,9 @@ export async function getHabit(id) {
   return habit ? clone(habit) : null;
 }
 
-export async function addHabit({ name, started_on }) {
+export async function addHabit({ name, started_on, ifThen }) {
   const state = requireInit();
-  const habit = createHabit({ name, started_on, order: nextOrder(state.habits) });
+  const habit = createHabit({ name, started_on, ifThen, order: nextOrder(state.habits) });
   assertValid(validateHabit(habit), '習慣');
   commit({ ...state, habits: [...state.habits, habit] });
   return clone(habit);

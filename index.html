@@ -32,61 +32,6 @@
        hidden な要素は click() で選択画面が開かない環境がある。 -->
   <input id="backup-file" type="file" accept="application/json,.json" class="visually-hidden">
 
-  <dialog id="add-habit-dialog">
-    <form id="add-habit-form">
-      <h2>習慣を追加</h2>
-
-      <label for="habit-name">名前</label>
-      <input id="habit-name" type="text" required autocomplete="off">
-
-      <label for="habit-started-on">開始日</label>
-      <input id="habit-started-on" type="date" required>
-
-      <p id="add-habit-error" class="error" hidden></p>
-
-      <menu>
-        <button id="add-habit-cancel" type="button">キャンセル</button>
-        <button type="submit">追加</button>
-      </menu>
-    </form>
-  </dialog>
-
-  <dialog id="edit-habit-dialog">
-    <form id="edit-habit-form">
-      <h2>習慣を編集</h2>
-
-      <label for="edit-habit-name">名前</label>
-      <input id="edit-habit-name" type="text" required autocomplete="off">
-
-      <label for="edit-habit-started-on">開始日</label>
-      <input id="edit-habit-started-on" type="date" required>
-
-      <div>
-        <p class="order-row">
-          <span>並び順</span>
-          <span id="edit-habit-position"></span>
-        </p>
-        <div class="order-buttons">
-          <button type="button" id="edit-habit-up">上へ</button>
-          <button type="button" id="edit-habit-down">下へ</button>
-        </div>
-      </div>
-
-      <p id="edit-habit-error" class="error" hidden></p>
-
-      <!-- 並べ替え・休止・削除は押した時点で反映する。保存ボタンの対象は
-           名前と開始日だけ。 -->
-      <div class="edit-actions">
-        <button type="button" id="edit-habit-delete" class="danger">この習慣を削除</button>
-      </div>
-
-      <menu>
-        <button type="button" id="edit-habit-cancel">キャンセル</button>
-        <button type="submit">保存</button>
-      </menu>
-    </form>
-  </dialog>
-
   <!-- close イベントに依存せず、ボタンのクリックで結果を決める。
        form method="dialog" は returnValue を設定して閉じるところまでは動くが、
        close イベントが発火しない環境があり、待ち続けて固まる。 -->
@@ -177,6 +122,58 @@
     <span class="dot"></span>
     <span class="week-day-label"></span>
   </div>
+</template>
+
+<!-- 習慣の追加・編集。追加のときは並び順と削除を出さない。 -->
+<template id="edit-screen-template">
+  <form class="edit-form">
+    <label class="field-label" for="edit-name">
+      <span class="field-name">習慣の名前</span>
+      <input id="edit-name" class="text-input" type="text" required autocomplete="off">
+    </label>
+
+    <label class="field-label" for="edit-started-on">
+      <span class="field-name">開始日</span>
+      <input id="edit-started-on" class="text-input" type="date" required>
+    </label>
+
+    <section class="panel">
+      <h2 class="panel-title">きっかけを決める</h2>
+      <p class="panel-note">記録画面のいちばん上に常に表示される。空欄でもいい。</p>
+
+      <label class="field-label" for="edit-trigger">
+        <span class="field-name small">〜したら</span>
+        <input id="edit-trigger" class="text-input inset" type="text" maxlength="60" autocomplete="off">
+      </label>
+      <label class="field-label" for="edit-action">
+        <span class="field-name small">〜する</span>
+        <input id="edit-action" class="text-input inset" type="text" maxlength="60" autocomplete="off">
+      </label>
+
+      <p class="panel-limit">各60文字まで</p>
+    </section>
+
+    <div class="preview-block">
+      <p class="preview-label">記録画面での見え方</p>
+      <div class="preview">
+        <span class="preview-trigger"></span>
+        <svg class="preview-arrow" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9h11"></path><path d="M10 5l4 4-4 4"></path></svg>
+        <span class="preview-action"></span>
+      </div>
+    </div>
+
+    <div class="order-block">
+      <p class="order-row"><span>並び順</span><span class="order-position"></span></p>
+      <div class="order-buttons">
+        <button type="button" class="order-up">上へ</button>
+        <button type="button" class="order-down">下へ</button>
+      </div>
+    </div>
+
+    <p class="error edit-error" hidden></p>
+
+    <button type="button" class="delete-button danger">この習慣を削除</button>
+  </form>
 </template>
 
 <!-- 記録フォーム。ホームの「今日の記録」と、週まとめの「過去の日の記録・修正」で

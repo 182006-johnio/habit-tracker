@@ -10,6 +10,7 @@
 // 組み立ては各画面に任せる。
 
 import * as storage from './storage.js';
+import { renderEditScreen } from './ui/edit-screen.js';
 import { renderHome } from './ui/home.js';
 import { renderRecordScreen } from './ui/record-screen.js';
 import { renderWeek } from './ui/week.js';
@@ -41,6 +42,7 @@ async function start() {
 const ROUTES = [
   { name: 'week', pattern: /^#week\/(.+)$/ },
   { name: 'record', pattern: /^#record\/(.+)$/ },
+  { name: 'edit', pattern: /^#edit\/(.+)$/ },
 ];
 
 function parseRoute(hash) {
@@ -54,6 +56,12 @@ function parseRoute(hash) {
 async function render() {
   const route = parseRoute(location.hash);
 
+  // 追加は対象の習慣がまだ無いので、照合より先に分ける。
+  if (route.name === 'edit' && route.habitId === 'new') {
+    await renderEditScreen(screen, header, null);
+    return;
+  }
+
   if (route.name !== 'home') {
     const habit = await storage.getHabit(route.habitId);
     if (!habit) {
@@ -62,7 +70,8 @@ async function render() {
       return;
     }
     if (route.name === 'week') await renderWeek(screen, header, habit);
-    else await renderRecordScreen(screen, header, habit);
+    else if (route.name === 'record') await renderRecordScreen(screen, header, habit);
+    else await renderEditScreen(screen, header, habit);
     return;
   }
 

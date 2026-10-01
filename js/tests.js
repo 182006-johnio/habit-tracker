@@ -5,6 +5,7 @@
 // export は予約語なので、モジュールの束縛名は backup にする。
 import * as backup from './export.js';
 import * as dates from './dates.js';
+import { formatIfThen } from './ui/if-then.js';
 import * as schema from './schema.js';
 import * as stats from './stats.js';
 import * as storage from './storage.js';
@@ -262,6 +263,18 @@ test('addHabit は order を 0 から順に振る', async () => {
     ['腕立て伏せ', '読書'],
     '一覧は order 順',
   );
+});
+
+test('addHabit は ifThen を受け取る', async () => {
+  await freshStore();
+  const habit = await storage.addHabit({
+    name: '読書', started_on: '2026-08-01',
+    ifThen: { trigger: '  夕食後  ', action: '1ページ' },
+  });
+  assertEqual(habit.ifThen, { trigger: '夕食後', action: '1ページ' }, '追加時に取り込まれる');
+
+  const plain = await storage.addHabit({ name: '散歩', started_on: '2026-08-01' });
+  assertEqual(plain.ifThen, { trigger: '', action: '' }, '省略時は空');
 });
 
 test('addHabit は不正な入力を拒否する', async () => {
@@ -864,6 +877,16 @@ test('cardMode は週モードを優先し、66 日で達成に切り替わる',
 test('formatLongDate は曜日まで出す', () => {
   assertEqual(dates.formatLongDate('2026-10-01'), '10月1日 木曜日', '木曜');
   assertEqual(dates.formatLongDate('2026-09-28'), '9月28日 月曜日', '月曜');
+});
+
+test('formatIfThen は両方空のときだけ何も返さない', () => {
+  assertEqual(formatIfThen({ trigger: '夕食後', action: '1問解く' }), { trigger: '夕食後', action: '1問解く' }, '両方');
+  assertEqual(formatIfThen({ trigger: '夕食後', action: '' }), { trigger: '夕食後', action: '' }, 'きっかけだけ');
+  assertEqual(formatIfThen({ trigger: '', action: '1問解く' }), { trigger: '', action: '1問解く' }, '行動だけ');
+  assertEqual(formatIfThen({ trigger: '', action: '' }), null, '両方空');
+  assertEqual(formatIfThen({ trigger: '  ', action: '　' }), null, '空白だけ');
+  assertEqual(formatIfThen(undefined), null, '未指定');
+  assertEqual(formatIfThen({ trigger: '  夕食後  ', action: ' 解く ' }), { trigger: '夕食後', action: '解く' }, 'trim される');
 });
 
 // --- インポート（全置換） -----------------------------------------------

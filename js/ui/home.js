@@ -8,7 +8,7 @@ import { CUMULATIVE_GOAL, cardMode, computeStats } from '../stats.js';
 import * as storage from '../storage.js';
 import { buildWeek } from '../weeks.js';
 import { backupSection } from './backup.js';
-import { confirmDeleteHabit, openEditDialog } from './edit-dialog.js';
+import { confirmDeleteHabit } from './edit-screen.js';
 import { dotKind } from './marks.js';
 import { setRating } from './rating.js';
 import { closeOpenSwipe, enableSwipe } from './swipe.js';
@@ -21,22 +21,14 @@ const mainTemplates = {
 };
 const dotTemplate = document.getElementById('week-dot-template');
 
-const addDialog = document.getElementById('add-habit-dialog');
-const addForm = document.getElementById('add-habit-form');
-const addName = document.getElementById('habit-name');
-const addStartedOn = document.getElementById('habit-started-on');
-const addError = document.getElementById('add-habit-error');
-const addCancel = document.getElementById('add-habit-cancel');
 
 // 週の曜日ラベル。週は月曜始まり。
 const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
 
 let currentRoot = null;
-let wired = false;
 
 export async function renderHome(root, header) {
   currentRoot = root;
-  wireOnce();
   closeOpenSwipe();
   root.replaceChildren();
   header.replaceChildren();
@@ -92,7 +84,7 @@ function addIconButton() {
   button.className = 'icon-button primary';
   button.setAttribute('aria-label', '習慣を追加');
   button.append(icon('M10 4v12', 'M4 10h12'));
-  button.addEventListener('click', openAddDialog);
+  button.addEventListener('click', openAddScreen);
   return button;
 }
 
@@ -228,7 +220,7 @@ function emptyState() {
   button.type = 'button';
   button.className = 'primary-button';
   button.textContent = '最初の習慣を追加';
-  button.addEventListener('click', openAddDialog);
+  button.addEventListener('click', openAddScreen);
 
   box.append(dots, heading, note, button);
   return box;
@@ -236,43 +228,9 @@ function emptyState() {
 
 // --- 習慣の追加 ---------------------------------------------------------
 
-function openAddDialog() {
-  addForm.reset();
-  addStartedOn.value = todayISO();
-  hideAddError();
-  addDialog.showModal();
-}
-
-async function onAddSubmit(event) {
-  event.preventDefault();
-  hideAddError();
-
-  const name = addName.value.trim();
-  if (name === '') {
-    showAddError('名前を入力してください。');
-    return;
-  }
-
-  try {
-    await storage.addHabit({ name, started_on: addStartedOn.value });
-  } catch (error) {
-    // 保存に失敗した場合はモーダルを閉じない。入力を失わせないため。
-    showAddError(error.message);
-    return;
-  }
-
-  addDialog.close();
-  await rerender();
-}
-
-function showAddError(message) {
-  addError.textContent = message;
-  addError.hidden = false;
-}
-
-function hideAddError() {
-  addError.textContent = '';
-  addError.hidden = true;
+// 追加も編集も画面（#edit/...）で行う。
+function openAddScreen() {
+  location.hash = 'edit/new';
 }
 
 // 記録画面など別の場所から編集したあとも、戻ってきたら最新を描く。
@@ -281,11 +239,4 @@ export async function rerender() {
   await renderHome(currentRoot, document.getElementById('app-header'));
 }
 
-export { openEditDialog };
 
-function wireOnce() {
-  if (wired) return;
-  wired = true;
-  addForm.addEventListener('submit', onAddSubmit);
-  addCancel.addEventListener('click', () => addDialog.close());
-}
