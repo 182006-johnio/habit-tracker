@@ -11,10 +11,13 @@ const template = document.getElementById('record-form-template');
 
 // 対象日が今日かどうかで項目名を入れ替える。3 日前を直しているのに
 // 「今日」と出るのを避ける。
+// blockerNote は v2 の自由記述欄。タグ入力は実装順 5 で足す。
 const LABELS = {
-  today: { action: '今日の行動', blocker: '今日邪魔したもの', fix: '明日への修正' },
-  past: { action: 'その日の行動', blocker: 'その日邪魔したもの', fix: '翌日への修正' },
+  today: { action: '今日の行動', blockerNote: '今日邪魔したもの', fix: '明日への修正' },
+  past: { action: 'その日の行動', blockerNote: 'その日邪魔したもの', fix: '翌日への修正' },
 };
+
+const TEXT_FIELDS = ['action', 'blockerNote', 'fix'];
 
 let active = null;
 let savedNoteTimer = null;
@@ -96,8 +99,14 @@ async function onRating(state, rating) {
     await storage.deleteLog(habit.id, date);
     state.log = null;
   } else {
-    // 表示中のテキストは引き継ぐ。達成度だけ差し替える形にする。
-    state.log = await storage.putLog({ habit_id: habit.id, date, rating, ...readFields(element) });
+    // 表示中のテキストとタグは引き継ぐ。達成度だけ差し替える形にする。
+    state.log = await storage.putLog({
+      habit_id: habit.id,
+      date,
+      rating,
+      blockerTags: log?.blockerTags ?? [],
+      ...readFields(element),
+    });
   }
 
   fill(state);
@@ -108,7 +117,7 @@ async function saveTexts(state) {
   if (state.log === null) return;
 
   const values = readFields(state.element);
-  const unchanged = ['action', 'blocker', 'fix'].every((key) => values[key].trim() === state.log[key]);
+  const unchanged = TEXT_FIELDS.every((key) => values[key].trim() === state.log[key]);
   if (unchanged) return;
 
   // 達成度は変えない。putLog は達成度が同じなら recorded_at を据え置くので、
@@ -117,6 +126,7 @@ async function saveTexts(state) {
     habit_id: state.habit.id,
     date: state.date,
     rating: state.log.rating,
+    blockerTags: state.log.blockerTags,
     ...values,
   });
   showSavedNote(state);

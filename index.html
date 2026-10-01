@@ -57,7 +57,7 @@
       <label for="edit-habit-started-on">開始日</label>
       <input id="edit-habit-started-on" type="date" required>
 
-      <div id="edit-habit-order">
+      <div>
         <p class="order-row">
           <span>並び順</span>
           <span id="edit-habit-position"></span>
@@ -73,7 +73,6 @@
       <!-- 並べ替え・休止・削除は押した時点で反映する。保存ボタンの対象は
            名前と開始日だけ。 -->
       <div class="edit-actions">
-        <button type="button" id="edit-habit-archive"></button>
         <button type="button" id="edit-habit-delete" class="danger">この習慣を削除</button>
       </div>
 
@@ -147,8 +146,8 @@
       <textarea class="field" data-field="action" rows="2"></textarea>
     </label>
     <label class="field-label">
-      <span class="field-name" data-label="blocker"></span>
-      <textarea class="field" data-field="blocker" rows="2"></textarea>
+      <span class="field-name" data-label="blockerNote"></span>
+      <textarea class="field" data-field="blockerNote" rows="2"></textarea>
     </label>
     <label class="field-label">
       <span class="field-name" data-label="fix"></span>

@@ -451,28 +451,6 @@ body {
   padding: 0.25rem 0.875rem 0.875rem;
 }
 
-/* --- 休止中 --- */
-
-.archived {
-  margin-top: 1.25rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.5rem;
-}
-
-.archived summary {
-  color: var(--muted);
-  font-size: 0.9375rem;
-}
-
-.archived-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 0.125rem;
-  color: var(--muted);
-}
-
 /* --- 編集モーダル --- */
 
 .order-row {

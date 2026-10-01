@@ -8,16 +8,19 @@
 // 差し替えたときに呼び出し側を書き直さずに済むようにしてある。
 
 import {
+  SCHEMA_VERSION,
   createDB,
   createHabit,
   createLog,
+  migrateDB,
+  normalizeIfThen,
   validateHabit,
   validateLog,
   validateDB,
 } from './schema.js';
 
 const DEFAULT_STORAGE_KEY = 'habitTracker.v1';
-const PATCHABLE_HABIT_FIELDS = ['name', 'started_on', 'order'];
+const PATCHABLE_HABIT_FIELDS = ['name', 'started_on', 'order', 'ifThen'];
 
 let storageKey = DEFAULT_STORAGE_KEY;
 let db = null; // メモリ上の唯一の正。commit() 以外から書き換えない。
@@ -53,22 +56,49 @@ export async function init({ key = DEFAULT_STORAGE_KEY } = {}) {
     );
   }
 
+  // schemaVersion が整数でなければ、v1（この項目が無かった頃）とみなす。
+  const version = Number.isInteger(parsed?.schemaVersion) ? parsed.schemaVersion : 1;
+  if (version > SCHEMA_VERSION) {
+    throw new StorageError(
+      `保存データが新しい形式です（version ${version}）。`
+      + 'このまま読み書きすると壊すので中断します。アプリを最新にしてください。',
+    );
+  }
+
+  const needsMigration = version < SCHEMA_VERSION;
+  if (needsMigration) {
+    backupOnce(raw, version);
+    parsed = migrateDB(parsed);
+  }
+
   const { ok, errors } = validateDB(parsed);
   if (!ok) {
     throw new StorageError(
       `保存データの検証に失敗しました。上書きを避けるためここで中断します。\n${errors.join('\n')}`,
     );
   }
+
+  // 書き込むのは検証を通ったあとだけ。
+  if (needsMigration) writeRaw(JSON.stringify(parsed));
   db = parsed;
+}
+
+// 移行前のデータをそのまま別キーへ退避する。二度目以降は上書きしない。
+// 退避を上書きすると、移行後に壊れていたときの戻り先が消える。
+function backupOnce(raw, version) {
+  const key = `${storageKey}.backup.v${version}`;
+  try {
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, raw);
+  } catch (cause) {
+    throw new StorageError('移行前のデータを退避できませんでした。移行を中断します。', { cause });
+  }
 }
 
 // --- 習慣 -------------------------------------------------------------
 
-export async function getHabits({ includeArchived = false } = {}) {
+export async function getHabits() {
   const state = requireInit();
-  const habits = state.habits
-    .filter((habit) => includeArchived || !habit.archived)
-    .sort((a, b) => a.order - b.order);
+  const habits = [...state.habits].sort((a, b) => a.order - b.order);
   return clone(habits);
 }
 
@@ -102,18 +132,8 @@ export async function updateHabit(id, patch) {
 
   const updated = { ...current, ...patch };
   if (typeof updated.name === 'string') updated.name = updated.name.trim();
+  if ('ifThen' in patch) updated.ifThen = normalizeIfThen(patch.ifThen);
   assertValid(validateHabit(updated), '習慣');
-  commit({ ...state, habits: replaceHabit(state.habits, updated) });
-  return clone(updated);
-}
-
-export async function setArchived(id, archived) {
-  const state = requireInit();
-  const current = findHabit(state, id);
-  if (typeof archived !== 'boolean') {
-    throw new StorageError('archived には真偽値を渡してください。');
-  }
-  const updated = { ...current, archived };
   commit({ ...state, habits: replaceHabit(state.habits, updated) });
   return clone(updated);
 }
@@ -159,14 +179,14 @@ export async function getLogsInRange(habit_id, from, to) {
 //
 // started_on より前の日付や未来の日付も受け付ける。判定ロジック側が started_on 以前を
 // 対象外として扱うため、ここで弾く必要がない。
-export async function putLog({ habit_id, date, rating, action, blocker, fix }) {
+export async function putLog({ habit_id, date, rating, action, blockerTags, blockerNote, fix }) {
   const state = requireInit();
   if (!state.habits.some((habit) => habit.id === habit_id)) {
     throw new StorageError(`習慣が見つかりません: ${String(habit_id)}`);
   }
 
   const existing = state.logs.find((log) => log.habit_id === habit_id && log.date === date);
-  const log = createLog({ habit_id, date, rating, action, blocker, fix });
+  const log = createLog({ habit_id, date, rating, action, blockerTags, blockerNote, fix });
   if (existing) {
     log.id = existing.id;
     // 達成度が同じなら記録日時を据え置く。recorded_at は「その日をどう判断したか」を

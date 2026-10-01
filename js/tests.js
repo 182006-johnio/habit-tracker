@@ -46,6 +46,9 @@ function sleep(ms) {
 
 async function freshStore() {
   localStorage.removeItem(TEST_KEY);
+  // 退避キーも消す。残っていると「移行していないのに退避がある」状態になり、
+  // 次のテストが前のテストの後始末に左右される。
+  localStorage.removeItem(`${TEST_KEY}.backup.v1`);
   await storage.init({ key: TEST_KEY });
 }
 
@@ -57,14 +60,22 @@ function makeLog(overrides = {}) {
     recorded_at: '2026-08-01T00:00:00.000Z',
     rating: schema.RATING.DONE,
     action: '',
-    blocker: '',
+    blockerTags: [],
+    blockerNote: '',
     fix: '',
     ...overrides,
   };
 }
 
 function makeHabit(overrides = {}) {
-  return { id: 'h1', name: '読書', started_on: '2026-08-01', archived: false, order: 0, ...overrides };
+  return {
+    id: 'h1',
+    name: '読書',
+    started_on: '2026-08-01',
+    order: 0,
+    ifThen: { trigger: '', action: '' },
+    ...overrides,
+  };
 }
 
 // 判定ロジック用。'○△×_' を並べた文字列を、開始日から 1 日ずつのログにする。
@@ -83,7 +94,7 @@ function sampleBackup() {
     habits: [makeHabit({ id: 'h-sample', name: '読書' })],
     logs: [
       makeLog({ id: 'l-sample-1', habit_id: 'h-sample', date: '2026-08-01', rating: schema.RATING.DONE, action: '20ページ' }),
-      makeLog({ id: 'l-sample-2', habit_id: 'h-sample', date: '2026-08-02', rating: schema.RATING.PARTIAL, blocker: '寝落ち' }),
+      makeLog({ id: 'l-sample-2', habit_id: 'h-sample', date: '2026-08-02', rating: schema.RATING.PARTIAL, blockerNote: '寝落ち' }),
     ],
   };
 }
@@ -143,17 +154,19 @@ test('addDays は不正な日付を例外にする', async () => {
 
 // --- schema -----------------------------------------------------------
 
-test('createHabit は id・archived・order を埋め、名前を trim する', () => {
+test('createHabit は id・order・ifThen を埋め、名前を trim する', () => {
   const habit = schema.createHabit({ name: '  腕立て伏せ  ', started_on: '2026-08-08', order: 3 });
   assertEqual(habit.name, '腕立て伏せ', '名前が trim されていません');
-  assertEqual(habit.archived, false, 'archived の初期値');
   assertEqual(habit.order, 3, 'order');
+  assertEqual(habit.ifThen, { trigger: '', action: '' }, 'ifThen の既定値');
+  assert(!('archived' in habit), 'archived は廃止したので付かないはず');
   assert(typeof habit.id === 'string' && habit.id.length > 0, 'id が生成されていません');
 });
 
-test('createLog は任意項目を空文字で埋め、recorded_at を入れる', () => {
+test('createLog は任意項目を空で埋め、recorded_at を入れる', () => {
   const log = schema.createLog({ habit_id: 'h1', date: '2026-08-08', rating: schema.RATING.DONE });
-  assertEqual([log.action, log.blocker, log.fix], ['', '', ''], '任意項目の既定値');
+  assertEqual([log.action, log.blockerNote, log.fix], ['', '', ''], '任意項目の既定値');
+  assertEqual(log.blockerTags, [], 'blockerTags の既定値');
   assert(!Number.isNaN(Date.parse(log.recorded_at)), 'recorded_at が日時として読めません');
 });
 
@@ -161,9 +174,42 @@ test('validateHabit は不正な習慣を検出する', () => {
   assert(schema.validateHabit(makeHabit()).ok, '正しい習慣が弾かれました');
   assert(!schema.validateHabit(makeHabit({ name: '   ' })).ok, '空白だけの名前');
   assert(!schema.validateHabit(makeHabit({ started_on: '2026-08-32' })).ok, '不正な開始日');
-  assert(!schema.validateHabit(makeHabit({ archived: 'no' })).ok, 'archived が真偽値でない');
   assert(!schema.validateHabit(makeHabit({ order: null })).ok, 'order が数値でない');
   assert(!schema.validateHabit(null).ok, 'null');
+});
+
+test('validateHabit は ifThen を検査する', () => {
+  assert(schema.validateHabit(makeHabit({ ifThen: { trigger: '夕食後', action: '1問解く' } })).ok, '正しい ifThen');
+  assert(!schema.validateHabit(makeHabit({ ifThen: undefined })).ok, 'ifThen が無い');
+  assert(!schema.validateHabit(makeHabit({ ifThen: { trigger: 'a' } })).ok, 'action が無い');
+  assert(!schema.validateHabit(makeHabit({ ifThen: { trigger: 1, action: '' } })).ok, 'trigger が文字列でない');
+  assert(schema.validateHabit(makeHabit({ ifThen: { trigger: 'あ'.repeat(60), action: '' } })).ok, '60 文字ちょうどは可');
+  assert(!schema.validateHabit(makeHabit({ ifThen: { trigger: 'あ'.repeat(61), action: '' } })).ok, '61 文字は不可');
+});
+
+test('normalizeTag は NFKC で揃えて前後の空白を落とす', () => {
+  assertEqual(schema.normalizeTag('  ＳＮＳ　'), 'SNS', '全角英字と全角スペース');
+  assertEqual(schema.normalizeTag('ﾋﾟｱﾉ'), 'ピアノ', '半角カナ');
+  assertEqual(schema.normalizeTag('疲労'), '疲労', 'そのまま');
+  assertEqual(schema.normalizeTag(5), 5, '文字列でない値はそのまま');
+});
+
+test('normalizeTags は空と重複を落とし、不正な値は残す', () => {
+  assertEqual(schema.normalizeTags(['疲労', ' 疲労 ', 'SNS']), ['疲労', 'SNS'], '重複をまとめる');
+  assertEqual(schema.normalizeTags(['', '　', '疲労']), ['疲労'], '空を落とす');
+  assertEqual(schema.normalizeTags(undefined), [], '未指定は空配列');
+  assertEqual(schema.normalizeTags([1]), [1], '文字列でない値は検証に回すため残す');
+});
+
+test('validateLog は blockerTags を検査する', () => {
+  assert(schema.validateLog(makeLog({ blockerTags: ['疲労', 'SNS'] })).ok, '正しいタグ');
+  assert(!schema.validateLog(makeLog({ blockerTags: '疲労' })).ok, '配列でない');
+  assert(!schema.validateLog(makeLog({ blockerTags: [''] })).ok, '空文字');
+  assert(!schema.validateLog(makeLog({ blockerTags: [1] })).ok, '文字列でない');
+  assert(!schema.validateLog(makeLog({ blockerTags: ['疲労', '疲労'] })).ok, '重複');
+  assert(schema.validateLog(makeLog({ blockerTags: ['あ'.repeat(20)] })).ok, '20 文字ちょうどは可');
+  assert(!schema.validateLog(makeLog({ blockerTags: ['あ'.repeat(21)] })).ok, '21 文字は不可');
+  assert(!schema.validateLog(makeLog({ blockerNote: null })).ok, 'blockerNote が文字列でない');
 });
 
 test('validateLog は rating と日付を検査する', () => {
@@ -178,10 +224,14 @@ test('validateLog は rating と日付を検査する', () => {
 
 test('validateDB は重複と参照切れを検出する', () => {
   const habit = makeHabit();
-  const db = (habits, logs) => ({ schemaVersion: 1, habits, logs });
+  // バージョン番号は直書きせず定数から取る。上げるたびに直す羽目になるため。
+  const db = (habits, logs) => ({ schemaVersion: schema.SCHEMA_VERSION, habits, logs });
 
   assert(schema.validateDB(db([habit], [makeLog()])).ok, '正しい DB が弾かれました');
-  assert(!schema.validateDB({ schemaVersion: 2, habits: [], logs: [] }).ok, 'schemaVersion 違い');
+  assert(
+    !schema.validateDB({ schemaVersion: schema.SCHEMA_VERSION + 1, habits: [], logs: [] }).ok,
+    'schemaVersion 違い',
+  );
   assert(!schema.validateDB(db([habit, habit], [])).ok, '習慣 id の重複');
   assert(
     !schema.validateDB(db([habit], [makeLog(), makeLog({ id: 'l2' })])).ok,
@@ -230,21 +280,19 @@ test('保存した内容は読み込み直しても残る', async () => {
   assertEqual((await storage.getLogs(habit.id)).length, 1, '再読み込み後のログ');
 });
 
-test('アーカイブした習慣は既定で一覧に出ない', async () => {
-  await freshStore();
-  const habit = await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
-  await storage.setArchived(habit.id, true);
-  assertEqual(await storage.getHabits(), [], '既定では除外されるはず');
-  assertEqual((await storage.getHabits({ includeArchived: true })).length, 1, 'includeArchived で出るはず');
-});
-
-test('updateHabit は知らないフィールドを拒否する', async () => {
+test('updateHabit は知らないフィールドを拒否し、ifThen を更新できる', async () => {
   await freshStore();
   const habit = await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
   const updated = await storage.updateHabit(habit.id, { name: '読書（30分）' });
   assertEqual(updated.name, '読書（30分）', '名前の更新');
+
+  const withIfThen = await storage.updateHabit(habit.id, {
+    ifThen: { trigger: '  夕食後  ', action: '1問解く' },
+  });
+  assertEqual(withIfThen.ifThen, { trigger: '夕食後', action: '1問解く' }, 'ifThen は trim される');
+
   await assertThrows(() => storage.updateHabit(habit.id, { id: 'x' }), 'id の更新');
-  await assertThrows(() => storage.updateHabit(habit.id, { archived: true }), 'archived の更新');
+  await assertThrows(() => storage.updateHabit(habit.id, { archived: true }), '廃止した archived');
   await assertThrows(() => storage.updateHabit(habit.id, { name: '' }), '空の名前');
   await assertThrows(() => storage.updateHabit('missing', { name: 'x' }), '存在しない習慣');
 });
@@ -499,6 +547,103 @@ test('classifyLogs は範囲外のログを含めない', () => {
 test('判定ロジックは不正な日付を例外にする', async () => {
   await assertThrows(() => stats.currentStreak([], { started_on: '2026-02-30' }), '不正な started_on');
   await assertThrows(() => stats.setbackCount([], { started_on: START, today: 'きょう' }), '不正な today');
+});
+
+// --- v1 → v2 の移行 -----------------------------------------------------
+
+// 旧スキーマのデータ。archived を持ち、blocker が自由記述、ifThen が無い。
+function v1Data() {
+  return {
+    schemaVersion: 1,
+    habits: [
+      { id: 'h1', name: '読書', started_on: '2026-08-01', archived: false, order: 0 },
+      { id: 'h2', name: '散歩', started_on: '2026-08-01', archived: true, order: 1 },
+    ],
+    logs: [
+      {
+        id: 'l1', habit_id: 'h1', date: '2026-08-01', recorded_at: '2026-08-01T00:00:00.000Z',
+        rating: 2, action: '20ページ', blocker: '寝落ち', fix: '早く寝る',
+      },
+    ],
+  };
+}
+
+async function initWith(raw) {
+  localStorage.removeItem(TEST_KEY);
+  localStorage.removeItem(`${TEST_KEY}.backup.v1`);
+  localStorage.setItem(TEST_KEY, raw);
+  await storage.init({ key: TEST_KEY });
+}
+
+test('v1 のデータが v2 に移行される', async () => {
+  await initWith(JSON.stringify(v1Data()));
+  const db = await storage.snapshot();
+
+  assertEqual(db.schemaVersion, 2, 'schemaVersion');
+  assert(db.habits.every((h) => !('archived' in h)), 'archived は落ちるはず');
+  assert(db.habits.every((h) => h.ifThen.trigger === '' && h.ifThen.action === ''), '空の ifThen が付くはず');
+  assertEqual(db.logs[0].blockerNote, '寝落ち', 'blocker は blockerNote へ移る');
+  assertEqual(db.logs[0].blockerTags, [], 'タグには自動変換しない');
+  assert(!('blocker' in db.logs[0]), '旧 blocker は落ちるはず');
+});
+
+test('休止中だった習慣は消えずに一覧へ戻る', async () => {
+  await initWith(JSON.stringify(v1Data()));
+  assertEqual((await storage.getHabits()).map((h) => h.name), ['読書', '散歩'], '2 件とも残るはず');
+});
+
+test('移行前のデータが退避キーに残る', async () => {
+  const raw = JSON.stringify(v1Data());
+  await initWith(raw);
+  assertEqual(localStorage.getItem(`${TEST_KEY}.backup.v1`), raw, '生のまま退避されるはず');
+});
+
+test('退避は二度目の移行で上書きされない', async () => {
+  const raw = JSON.stringify(v1Data());
+  await initWith(raw);
+
+  // もう一度 v1 を書いてから init しても、最初の退避が残る
+  const other = JSON.stringify({ ...v1Data(), logs: [] });
+  localStorage.setItem(TEST_KEY, other);
+  await storage.init({ key: TEST_KEY });
+
+  assertEqual(localStorage.getItem(`${TEST_KEY}.backup.v1`), raw, '最初の退避が残るはず');
+});
+
+test('すでに v2 なら移行も退避もしない', async () => {
+  await freshStore();
+  await storage.addHabit({ name: '読書', started_on: '2026-08-01' });
+  const before = localStorage.getItem(TEST_KEY);
+
+  await storage.init({ key: TEST_KEY });
+  assertEqual(localStorage.getItem(TEST_KEY), before, '保存内容は変わらないはず');
+  assertEqual(localStorage.getItem(`${TEST_KEY}.backup.v1`), null, '退避は作られないはず');
+});
+
+test('移行に失敗する壊れたデータは書き換えない', async () => {
+  // rating が範囲外なので、移行しても検証に通らない
+  const broken = JSON.stringify({
+    schemaVersion: 1,
+    habits: [{ id: 'h1', name: '読書', started_on: '2026-08-01', archived: false, order: 0 }],
+    logs: [{
+      id: 'l1', habit_id: 'h1', date: '2026-08-01', recorded_at: '2026-08-01T00:00:00.000Z',
+      rating: 9, action: '', blocker: '', fix: '',
+    }],
+  });
+  localStorage.removeItem(`${TEST_KEY}.backup.v1`);
+  localStorage.setItem(TEST_KEY, broken);
+
+  await assertThrows(() => storage.init({ key: TEST_KEY }), '検証に落ちる移行');
+  assertEqual(localStorage.getItem(TEST_KEY), broken, '元データが書き換わってはいけない');
+  localStorage.removeItem(`${TEST_KEY}.backup.v1`);
+});
+
+test('新しいバージョンのデータは触らない', async () => {
+  const future = JSON.stringify({ schemaVersion: 3, habits: [], logs: [] });
+  localStorage.setItem(TEST_KEY, future);
+  await assertThrows(() => storage.init({ key: TEST_KEY }), 'version 3');
+  assertEqual(localStorage.getItem(TEST_KEY), future, '元データが書き換わってはいけない');
+  localStorage.removeItem(TEST_KEY);
 });
 
 // --- weeks（週まとめ） --------------------------------------------------
