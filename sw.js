@@ -8,7 +8,7 @@
 // 新しい版は次にアプリを開いたときに切り替わる。更新が 1 回遅れる代わりに、
 // 半端に新しい状態にはならない。更新するときは CACHE の名前を変える。
 
-const CACHE = 'habit-tracker-v28';
+const CACHE = 'habit-tracker-v29';
 
 const PRECACHE = [
   './',
@@ -39,10 +39,11 @@ const PRECACHE = [
   './js/ui/swipe.js',
   './js/ui/tags.js',
   './js/ui/week.js',
-  './favicon.ico',
-  './icons/icon-180.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
 ];
 
 // パス → 保存したときの URL。?cb=... が付いていても同じファイルとして拾うため、
