@@ -1194,6 +1194,91 @@ dialog menu button {
   color: var(--week);
 }
 
+/* 今のレベル。きっかけのカードと同じ箱にして、縦に並んでも揃って見えるようにする。 */
+.stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.stage-card[hidden] {
+  display: none;
+}
+
+.stage-label {
+  font-size: 1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.stage-goal {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* --- 記録項目の入力（記録画面） --- */
+
+.metric-inputs {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.metric-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 60px;
+  padding: 0.375rem 0;
+}
+
+.metric-input-row + .metric-input-row {
+  border-top: 1px solid var(--border);
+}
+
+.metric-input-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.metric-input-field {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.metric-input {
+  width: 6.5rem;
+  background: var(--field);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-input[type="time"] {
+  width: 7.5rem;
+}
+
+.metric-input-unit {
+  min-width: 1.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 /* 達成度は 3 つの大きいボタン。記録画面でいちばん押すところ。 */
 .rating-grid {
   display: grid;

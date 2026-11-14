@@ -15,9 +15,10 @@ export async function setRating({ habit, date, rating, log, fields = null }) {
   if (log !== null && log.rating === rating) {
     const texts = fields ?? log;
     const hasText = ['action', 'blockerNote', 'fix'].some((key) => (texts[key] ?? '').trim() !== '')
-      || (log.blockerTags?.length ?? 0) > 0;
+      || (log.blockerTags?.length ?? 0) > 0
+      || Object.keys(log.values ?? {}).length > 0;
 
-    if (hasText && !(await askConfirm('記入したテキストも一緒に消えます。この日の記録を消しますか？'))) {
+    if (hasText && !(await askConfirm('記入したテキストや数値も一緒に消えます。この日の記録を消しますか？'))) {
       return log;
     }
     await storage.deleteLog(habit.id, date);

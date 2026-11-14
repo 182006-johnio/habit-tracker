@@ -14,6 +14,7 @@ import { renderComeback } from './comeback.js';
 import { askConfirm } from './confirm.js';
 import { buildGrid, buildLegend } from './grid.js';
 import { formatIfThen } from './if-then.js';
+import { createMetricInputs } from './metric-inputs.js';
 import { createTagInput } from './tags.js';
 
 const template = document.getElementById('record-screen-template');
@@ -45,6 +46,12 @@ export async function renderRecordScreen(root, header, habit, date) {
   const tagInput = createTagInput({ tags: log?.blockerTags ?? [], usage: tagUsage(allLogs) });
   screen.querySelector('.tag-slot').replaceWith(tagInput.element);
 
+  // 記録項目が無い習慣では、まとまりごと出さない。
+  const metricInputs = createMetricInputs(habit.metrics, log?.values ?? {});
+  const metricSlot = screen.querySelector('.metric-slot');
+  if (metricInputs.element === null) metricSlot.remove();
+  else metricSlot.replaceWith(metricInputs.element);
+
   const state = {
     root,
     header,
@@ -54,6 +61,7 @@ export async function renderRecordScreen(root, header, habit, date) {
     log,
     rating: log === null ? null : log.rating,
     tagInput,
+    metricInputs,
     screen,
     fields: {
       action: screen.querySelector('#record-action'),
@@ -63,6 +71,7 @@ export async function renderRecordScreen(root, header, habit, date) {
   };
 
   fillIfThen(screen, habit.ifThen);
+  fillStage(screen, habit.stage);
 
   screen.querySelector('label[for="record-action"]').textContent = labels.action;
   screen.querySelector('label[for="record-fix"]').textContent = labels.fix;
@@ -187,6 +196,27 @@ function fillIfThen(screen, ifThen) {
   screen.querySelector('.if-then-arrow').hidden = parts.trigger === '' || parts.action === '';
 }
 
+// 今のレベルと合格条件。過去の日を開いていても、出すのは習慣の今のレベル。
+function fillStage(screen, stage) {
+  const card = screen.querySelector('.stage-card');
+  const label = stage.label.trim();
+  const goal = stage.goal.trim();
+
+  if (label === '' && goal === '') {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const labelBox = screen.querySelector('.stage-label');
+  labelBox.textContent = label;
+  labelBox.hidden = label === '';
+
+  const goalBox = screen.querySelector('.stage-goal');
+  goalBox.textContent = goal;
+  goalBox.hidden = goal === '';
+}
+
 function pickRating(state, rating) {
   // 選んでいるものをもう一度押すと外れる。ホームのカードの二度押しと同じ操作で、
   // 外したまま確定すればその日の記録が消える。
@@ -228,6 +258,13 @@ async function submit(state) {
     return;
   }
 
+  // 読めない数値が入っていたら保存しない。黙って捨てると書いた本人が気付けない。
+  const metrics = state.metricInputs.read();
+  if (!metrics.ok) {
+    showError(state, metrics.message);
+    return;
+  }
+
   // 復帰したかどうかは、保存の前後で復帰回数を比べて決める。保存のたびに
   // 数え直すので、どの日を直しても同じ判定になる。
   const range = { started_on: state.habit.started_on, today: state.today };
@@ -242,6 +279,7 @@ async function submit(state) {
       blockerTags: state.tagInput.values(),
       blockerNote: state.fields.note.value,
       fix: state.fields.fix.value,
+      values: metrics.values,
     });
   } catch (error) {
     // 保存に失敗したら画面に留まる。入力を失わせないため。
@@ -262,7 +300,7 @@ async function remove(state) {
     showError(state, '達成度を選んでください。');
     return;
   }
-  if (!(await askConfirm('この日の記録を消しますか？記入したテキストも消えます。'))) return;
+  if (!(await askConfirm('この日の記録を消しますか？記入したテキストや数値も消えます。'))) return;
 
   await storage.deleteLog(state.habit.id, state.date);
   goHome();
