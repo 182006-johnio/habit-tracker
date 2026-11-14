@@ -997,6 +997,14 @@ dialog menu button {
   max-width: 100%;
   -webkit-appearance: none;
   appearance: none;
+  /* 中身の幅を欄の幅に影響させない。iOS が持つ最小幅が外に漏れるのを止める。 */
+  contain: inline-size;
+}
+
+/* 縦に積んだ欄が、中身の最小幅に押されて画面より広がらないようにする。 */
+.edit-form > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .text-input[type="date"]::-webkit-date-and-time-value,
