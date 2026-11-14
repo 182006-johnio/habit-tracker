@@ -1074,6 +1074,80 @@ test('formatMetricTotals は数値で合計・平均・記録日数、時刻と�
   assertEqual(report.formatMetricTotals({ metric: COUNT, sum: 0, average: null, count: 0 }), '記録 0日', '値なし');
 });
 
+// --- weekReportText（コピー用のテキスト） --------------------------------
+
+test('weekReportText は見出し・レベル・日ごとの記録・集計を並べる', () => {
+  const done = { id: 'm-done', label: '3秒以内に着手', kind: 'number', unit: '回', active: true };
+  const habit = makeHabit({
+    name: '3秒着手',
+    started_on: weekDay(1),
+    stage: { label: 'Lv1 決めるを消す', goal: '成功率7割以上' },
+    metrics: [COUNT, done],
+  });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), rating: schema.RATING.DONE, values: { 'm-count': 5, 'm-done': 4 } }),
+    makeLog({ id: '2', date: weekDay(2), rating: schema.RATING.PARTIAL, values: { 'm-count': 6 } }),
+    makeLog({ id: '4', date: weekDay(4), rating: schema.RATING.SKIP }),
+    makeLog({ id: '5', date: weekDay(5), rating: schema.RATING.DONE, values: { 'm-count': 0, 'm-done': 0 } }),
+  ];
+
+  assertEqual(
+    report.weekReportText(habit, logs, weekDay(1), weekDay(7), weekDay(7)).split('\n'),
+    [
+      '【3秒着手】9月28日（月）〜10月4日（日）',
+      'レベル: Lv1 決めるを消す',
+      '合格条件: 成功率7割以上',
+      '',
+      '9月28日（月） ○ トリガー回数 5回 / 3秒以内に着手 4回',
+      '9月29日（火） △ トリガー回数 6回',
+      '9月30日（水） 未記入',
+      '10月1日（木） ×',
+      '10月2日（金） ○ トリガー回数 0回 / 3秒以内に着手 0回',
+      '10月3日（土） 未記入',
+      '10月4日（日） 未記入',
+      '',
+      '達成: ○2 △1 ×1 未記入3',
+      'トリガー回数: 合計 11回・平均 3.67回・記録 3日',
+      '3秒以内に着手: 合計 4回・平均 2回・記録 2日',
+    ],
+    'テキスト',
+  );
+});
+
+test('weekReportText は開始前とまだ来ていない日を出さず、未記入にも数えない', () => {
+  const habit = makeHabit({ started_on: weekDay(2), metrics: [COUNT] });
+  const logs = [makeLog({ id: '3', date: weekDay(3), values: { 'm-count': 2 } })];
+
+  assertEqual(
+    report.weekReportText(habit, logs, weekDay(1), weekDay(7), weekDay(4)).split('\n'),
+    [
+      '【読書】9月28日（月）〜10月4日（日）',
+      '',
+      '9月29日（火） 未記入',
+      '9月30日（水） ○ トリガー回数 2回',
+      '10月1日（木） 未記入',
+      '',
+      '達成: ○1 △0 ×0 未記入2',
+      'トリガー回数: 合計 2回・平均 2回・記録 1日',
+    ],
+    'レベルが空なら行ごと出さない',
+  );
+});
+
+test('weekReportText は時刻の項目と使用終了の項目も書く', () => {
+  const retired = { ...COUNT, active: false };
+  const habit = makeHabit({ name: '超体力', started_on: weekDay(1), metrics: [WAKE, retired] });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), values: { 'm-wake': '06:30', 'm-count': 3 } }),
+    makeLog({ id: '2', date: weekDay(2), values: { 'm-wake': '07:10' } }),
+  ];
+  const lines = report.weekReportText(habit, logs, weekDay(1), weekDay(7), weekDay(2)).split('\n');
+
+  assertEqual(lines[2], '9月28日（月） ○ 起床時刻 06:30 / トリガー回数 3回', '値のある使用終了の項目も出す');
+  assertEqual(lines[3], '9月29日（火） ○ 起床時刻 07:10', '時刻に単位は付かない');
+  assertEqual(lines.slice(-2), ['起床時刻: 記録 2日', 'トリガー回数: 合計 3回・平均 3回・記録 1日'], '集計');
+});
+
 // --- weeks（カレンダー週） ----------------------------------------------
 
 // 2026-08-01 は土曜。その週の月曜は 2026-07-27。

@@ -7,7 +7,7 @@
 // 取れないが（390px の画面に入らない）、高さは 44px 取り、過去の日を直す経路は残す。
 
 import { addDays, formatMonthDay, startOfWeek, todayISO } from '../dates.js';
-import { formatMetricName, formatMetricTotals, formatMetricValue } from '../report.js';
+import { formatMetricName, formatMetricTotals, formatMetricValue, weekReportText } from '../report.js';
 import { blockerRanking, isActiveDay, metricSummary } from '../stats.js';
 import * as storage from '../storage.js';
 import { buildWeek, endOfWeek } from '../weeks.js';
@@ -50,7 +50,7 @@ export async function renderWeek(root, header, weekStart) {
   root.append(...[
     table(habits, logsByHabit, start, today),
     blockerCard(db.logs, start, end),
-    ...metricCards(habits, logsByHabit, start, end),
+    ...metricCards(habits, logsByHabit, start, end, today),
     pastWeeks(habits, logsByHabit, start, today, first),
   ].filter((section) => section !== null));
 }
@@ -303,13 +303,56 @@ function blockerRow(tag, count, max) {
 
 // 記録項目を持つ習慣ごとに 1 枚。項目が無い習慣は出さない。
 // 合否は判定しない。合格条件のメモと数字を並べて、本人が見比べる。
-function metricCards(habits, logsByHabit, start, end) {
+function metricCards(habits, logsByHabit, start, end, today) {
   const cards = [];
   for (const habit of habits) {
-    const summaries = metricSummary(habit, logsByHabit.get(habit.id) ?? [], start, end);
-    if (summaries.length > 0) cards.push(metricCard(habit, summaries));
+    const logs = logsByHabit.get(habit.id) ?? [];
+    const summaries = metricSummary(habit, logs, start, end);
+    if (summaries.length === 0) continue;
+
+    const card = metricCard(habit, summaries);
+    card.append(copyBlock(() => weekReportText(habit, logs, start, end, today)));
+    cards.push(card);
   }
   return cards;
+}
+
+const COPY_LABEL = 'この週の記録をコピー';
+const COPIED_MS = 2000;
+
+// コピーするのは端末のクリップボードだけ。外へは何も送らない。貼り付けは本人が行う。
+//
+// writeText はユーザー操作の直後にしか通らない。文字の組み立ては同期で済ませ、
+// 押した流れのまま呼ぶ。
+function copyBlock(buildText) {
+  const block = document.createElement('div');
+  block.className = 'copy-block';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'copy-button';
+  button.textContent = COPY_LABEL;
+
+  const error = textBlock('p', 'error copy-error', '');
+  error.hidden = true;
+
+  let timer = null;
+  button.addEventListener('click', async () => {
+    error.hidden = true;
+    try {
+      await navigator.clipboard.writeText(buildText());
+    } catch {
+      error.textContent = 'コピーできませんでした。ブラウザがクリップボードへの書き込みを許可していません。';
+      error.hidden = false;
+      return;
+    }
+    button.textContent = 'コピーしました';
+    clearTimeout(timer);
+    timer = setTimeout(() => { button.textContent = COPY_LABEL; }, COPIED_MS);
+  });
+
+  block.append(button, error);
+  return block;
 }
 
 function metricCard(habit, summaries) {
