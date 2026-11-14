@@ -7,6 +7,7 @@ import { todayISO } from '../dates.js';
 import * as storage from '../storage.js';
 import { askConfirm } from './confirm.js';
 import { formatIfThen } from './if-then.js';
+import { createMetricEditor } from './metric-editor.js';
 
 const template = document.getElementById('edit-screen-template');
 
@@ -20,6 +21,8 @@ export async function renderEditScreen(root, header, habit) {
     startedOn: form.querySelector('#edit-started-on'),
     trigger: form.querySelector('#edit-trigger'),
     action: form.querySelector('#edit-action'),
+    stageLabel: form.querySelector('#edit-stage-label'),
+    stageGoal: form.querySelector('#edit-stage-goal'),
   };
   const errorBox = form.querySelector('.edit-error');
 
@@ -27,6 +30,14 @@ export async function renderEditScreen(root, header, habit) {
   fields.startedOn.value = habit?.started_on ?? todayISO();
   fields.trigger.value = habit?.ifThen?.trigger ?? '';
   fields.action.value = habit?.ifThen?.action ?? '';
+  fields.stageLabel.value = habit?.stage?.label ?? '';
+  fields.stageGoal.value = habit?.stage?.goal ?? '';
+
+  fields.metrics = createMetricEditor(
+    form.querySelector('.metric-editor'),
+    habit?.metrics ?? [],
+    habit === null ? new Set() : await usedMetricIds(habit),
+  );
 
   // プレビューは打つそばで変える。記録画面でどう出るかが分かるように。
   const updatePreview = () => fillPreview(form, {
@@ -67,6 +78,12 @@ export async function confirmDeleteHabit(habit) {
     ? `「${habit.name}」を削除しますか？`
     : `「${habit.name}」を削除します。記録 ${logs.length} 件も一緒に消えます。`;
   return askConfirm(message, '削除する');
+}
+
+// 値を持つログがある記録項目の id。削除と種類の変更を止めるために使う。
+async function usedMetricIds(habit) {
+  const logs = await storage.getLogs(habit.id);
+  return new Set(logs.flatMap((log) => Object.keys(log.values)));
 }
 
 function editHeader(habit, onSave) {
@@ -153,10 +170,18 @@ async function save(habit, fields, errorBox) {
     return;
   }
 
+  const metricError = fields.metrics.validate();
+  if (metricError !== null) {
+    showError(errorBox, metricError);
+    return;
+  }
+
   const patch = {
     name,
     started_on: fields.startedOn.value,
     ifThen: { trigger: fields.trigger.value, action: fields.action.value },
+    stage: { label: fields.stageLabel.value, goal: fields.stageGoal.value },
+    metrics: fields.metrics.values(),
   };
 
   try {

@@ -914,6 +914,124 @@ dialog menu button {
   font-variant-numeric: tabular-nums;
 }
 
+/* 複数行の入力欄。高さは行数に任せる。 */
+.text-input.text-area {
+  height: auto;
+  min-height: 5.5rem;
+  padding: 0.75rem 0.875rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* --- 記録項目の編集（習慣の編集画面） --- */
+
+.metric-editor,
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.metric-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.metric-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.metric-kind {
+  flex: 0 0 6.5rem;
+}
+
+.metric-kind:disabled {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.metric-unit {
+  flex: 1;
+  min-width: 0;
+}
+
+.metric-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.metric-action {
+  min-width: 5rem;
+  height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.metric-action.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.metric-lock,
+.metric-empty,
+.metric-retired-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.metric-empty {
+  font-size: 0.875rem;
+}
+
+.metric-add {
+  height: 48px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.metric-retired-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.metric-retired-block[hidden] {
+  display: none;
+}
+
+.metric-row.retired {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.metric-retired-name {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
 .preview-block {
   display: flex;
   flex-direction: column;

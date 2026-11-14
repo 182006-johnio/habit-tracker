@@ -164,6 +164,28 @@
       </div>
     </div>
 
+    <section class="panel">
+      <h2 class="panel-title">今のレベル</h2>
+      <p class="panel-note">記録画面と週まとめに表示される。空欄でもいい。</p>
+
+      <label class="field-label" for="edit-stage-label">
+        <span class="field-name small">レベル名</span>
+        <input id="edit-stage-label" class="text-input inset" type="text" maxlength="40" autocomplete="off" placeholder="例: Lv2 完了を目標から外す">
+      </label>
+      <label class="field-label" for="edit-stage-goal">
+        <span class="field-name small">合格条件</span>
+        <textarea id="edit-stage-goal" class="text-input inset text-area" rows="3" maxlength="120" placeholder="例: 6日以上達成、その半分以上で超過"></textarea>
+      </label>
+
+      <p class="panel-limit">レベル名40文字・合格条件120文字まで</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">記録する項目</h2>
+      <p class="panel-note">記録画面で毎日入力する数値や時刻。レベルが変わって使わなくなった項目は「使用終了」にすると、過去の記録を残したまま入力欄から外せる。</p>
+      <div class="metric-editor"></div>
+    </section>
+
     <div class="order-block">
       <p class="order-row"><span>並び順</span><span class="order-position"></span></p>
       <div class="order-buttons">
