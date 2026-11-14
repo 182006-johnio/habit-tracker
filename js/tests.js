@@ -958,6 +958,91 @@ test('computeStats はカードに必要な値をまとめて返す', () => {
   );
 });
 
+// --- metricSummary（記録項目の集計） -------------------------------------
+
+test('metricSummary は 7 日分の値と合計・平均・記録日数を返す', () => {
+  const habit = makeHabit({ metrics: [COUNT] });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), values: { 'm-count': 4 } }),
+    makeLog({ id: '2', date: weekDay(2), values: { 'm-count': 0 } }),
+    makeLog({ id: '3', date: weekDay(4), values: { 'm-count': 5 } }),
+    makeLog({ id: '4', date: weekDay(5) }),
+  ];
+  assertEqual(
+    stats.metricSummary(habit, logs, weekDay(1), weekDay(7)),
+    [{ metric: COUNT, days: [4, 0, null, 5, null, null, null], sum: 9, average: 3, count: 3 }],
+    '集計',
+  );
+});
+
+test('metricSummary の平均は記録した日だけで割り、0 も 1 日として数える', () => {
+  const habit = makeHabit({ metrics: [COUNT] });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), values: { 'm-count': 0 } }),
+    makeLog({ id: '2', date: weekDay(2), values: { 'm-count': 1 } }),
+  ];
+  const [summary] = stats.metricSummary(habit, logs, weekDay(1), weekDay(7));
+  assertEqual([summary.sum, summary.average, summary.count], [1, 0.5, 2], '0 の日も記録日');
+});
+
+test('metricSummary は時刻の項目で合計と平均を出さない', () => {
+  const habit = makeHabit({ metrics: [WAKE] });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), values: { 'm-wake': '06:30' } }),
+    makeLog({ id: '2', date: weekDay(3), values: { 'm-wake': '07:10' } }),
+  ];
+  assertEqual(
+    stats.metricSummary(habit, logs, weekDay(1), weekDay(7)),
+    [{ metric: WAKE, days: ['06:30', null, '07:10', null, null, null, null], sum: null, average: null, count: 2 }],
+    '時刻',
+  );
+});
+
+test('metricSummary は値の無い週も使用中の項目を出す', () => {
+  const habit = makeHabit({ metrics: [COUNT, WAKE] });
+  const result = stats.metricSummary(habit, [], weekDay(1), weekDay(7));
+  assertEqual(result.map((s) => s.metric.id), ['m-count', 'm-wake'], 'habit.metrics の順');
+  assertEqual(
+    [result[0].days, result[0].sum, result[0].average, result[0].count],
+    [[null, null, null, null, null, null, null], 0, null, 0],
+    '空の数値項目',
+  );
+});
+
+test('metricSummary は使用終了の項目を、その期間に値があるときだけ出す', () => {
+  const retired = { ...COUNT, active: false };
+  const habit = makeHabit({ metrics: [retired, WAKE] });
+  const logs = [makeLog({ id: '1', date: weekDay(1), values: { 'm-count': 2 } })];
+
+  assertEqual(
+    stats.metricSummary(habit, logs, weekDay(1), weekDay(7)).map((s) => s.metric.id),
+    ['m-count', 'm-wake'],
+    '値のある週は出す',
+  );
+  assertEqual(
+    stats.metricSummary(habit, logs, weekDay(8), weekDay(14)).map((s) => s.metric.id),
+    ['m-wake'],
+    '値の無い週は出さない',
+  );
+});
+
+test('metricSummary は範囲外を除き、rating を見ず、小数の誤差を残さない', () => {
+  const habit = makeHabit({ metrics: [COUNT] });
+  const logs = [
+    makeLog({ id: '0', date: weekDay(0), values: { 'm-count': 100 } }),
+    makeLog({ id: '1', date: weekDay(1), rating: schema.RATING.SKIP, values: { 'm-count': 0.1 } }),
+    makeLog({ id: '2', date: weekDay(2), values: { 'm-count': 0.2 } }),
+    makeLog({ id: '8', date: weekDay(8), values: { 'm-count': 100 } }),
+  ];
+  const [summary] = stats.metricSummary(habit, logs, weekDay(1), weekDay(7));
+  assertEqual([summary.sum, summary.average, summary.count], [0.3, 0.15, 2], '× の日も数え、誤差なし');
+});
+
+test('metricSummary は記録項目の無い習慣で空を返し、不正な期間を拒否する', async () => {
+  assertEqual(stats.metricSummary(makeHabit(), [], weekDay(1), weekDay(7)), [], '項目なし');
+  await assertThrows(() => stats.metricSummary(makeHabit(), [], 'x', weekDay(7)), '不正な from');
+});
+
 // --- weeks（カレンダー週） ----------------------------------------------
 
 // 2026-08-01 は土曜。その週の月曜は 2026-07-27。

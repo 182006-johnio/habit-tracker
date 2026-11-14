@@ -6,7 +6,7 @@
 // logs には 1 つの習慣のログ（storage.getLogs(habit_id) の戻り値）を渡す。
 // today を引数で受け取るのは、実行日に依存させないため。省略時は今日。
 
-import { RATING } from './schema.js';
+import { METRIC_KIND, RATING } from './schema.js';
 import { addDays, diffDays, isValidISO, startOfWeek, todayISO } from './dates.js';
 
 const DAYS_PER_WEEK = 7;
@@ -149,6 +149,48 @@ function requireRange(from, to) {
       `期間が 'YYYY-MM-DD' 形式の実在する日付ではありません: ${String(from)} 〜 ${String(to)}`,
     );
   }
+}
+
+// 記録項目の集計。from から to まで（両端を含む）の日ごとの値と、合計・平均・記録日数。
+//
+// 返すのは、使用中の項目と、使用終了でも期間内に値がある項目。並びは habit.metrics の順。
+// days は期間の日数ぶんの配列で、値が無い日は null。
+// 平均は「記録した日」での平均。未入力の日を 0 として薄めない。
+// 時刻の項目は足したり平均したりしても意味が無いので、sum と average は null にする。
+// ○△× は見ない。× を付けた日でも数値は記録として数える。
+export function metricSummary(habit, logs, from, to) {
+  requireRange(from, to);
+
+  const length = Math.max(diffDays(from, to) + 1, 0);
+  const byDate = new Map(logs.map((log) => [log.date, log]));
+
+  const summaries = [];
+  for (const metric of habit.metrics) {
+    const days = [];
+    for (let offset = 0; offset < length; offset += 1) {
+      const value = byDate.get(addDays(from, offset))?.values?.[metric.id];
+      days.push(value === undefined ? null : value);
+    }
+
+    const recorded = days.filter((value) => value !== null);
+    if (!metric.active && recorded.length === 0) continue;
+
+    const isNumber = metric.kind === METRIC_KIND.NUMBER;
+    const sum = isNumber ? tidy(recorded.reduce((total, value) => total + value, 0)) : null;
+    summaries.push({
+      metric,
+      days,
+      sum,
+      average: isNumber && recorded.length > 0 ? tidy(sum / recorded.length) : null,
+      count: recorded.length,
+    });
+  }
+  return summaries;
+}
+
+// 0.1 + 0.2 のような浮動小数の誤差を落とす。表示の丸めは UI 側が決める。
+function tidy(value) {
+  return Math.round(value * 1e6) / 1e6;
 }
 
 // カードが一度に必要とする値をまとめて返す。
