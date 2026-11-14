@@ -301,14 +301,14 @@ function blockerRow(tag, count, max) {
 
 // --- 記録項目の集計 ------------------------------------------------------
 
-// 記録項目を持つ習慣ごとに 1 枚。項目が無い習慣は出さない。
+// 習慣ごとに 1 枚。記録項目が無い習慣も、習慣名とコピーのボタンだけのカードを出す
+// （○△× だけの週の記録もコピーできるように）。
 // 合否は判定しない。合格条件のメモと数字を並べて、本人が見比べる。
 function metricCards(habits, logsByHabit, start, end, today) {
   const cards = [];
   for (const habit of habits) {
     const logs = logsByHabit.get(habit.id) ?? [];
     const summaries = metricSummary(habit, logs, start, end);
-    if (summaries.length === 0) continue;
 
     const card = metricCard(habit, summaries);
     card.append(copyBlock(() => weekReportText(habit, logs, start, end, today)));

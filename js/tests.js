@@ -1148,6 +1148,28 @@ test('weekReportText は時刻の項目と使用終了の項目も書く', () =>
   assertEqual(lines.slice(-2), ['起床時刻: 記録 2日', 'トリガー回数: 合計 3回・平均 3回・記録 1日'], '集計');
 });
 
+test('weekReportText は記録項目の無い習慣でも ○△× だけで組み立てる', () => {
+  const habit = makeHabit({ started_on: weekDay(1) });
+  const logs = [
+    makeLog({ id: '1', date: weekDay(1), rating: schema.RATING.DONE }),
+    makeLog({ id: '2', date: weekDay(2), rating: schema.RATING.SKIP }),
+  ];
+
+  assertEqual(
+    report.weekReportText(habit, logs, weekDay(1), weekDay(7), weekDay(3)).split('\n'),
+    [
+      '【読書】9月28日（月）〜10月4日（日）',
+      '',
+      '9月28日（月） ○',
+      '9月29日（火） ×',
+      '9月30日（水） 未記入',
+      '',
+      '達成: ○1 △0 ×1 未記入1',
+    ],
+    '項目なし',
+  );
+});
+
 // --- weeks（カレンダー週） ----------------------------------------------
 
 // 2026-08-01 は土曜。その週の月曜は 2026-07-27。
