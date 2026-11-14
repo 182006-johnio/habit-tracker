@@ -8,7 +8,7 @@
 
 import { isValidISO, nowTimestamp } from './dates.js';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // 2 = ○、1 = △、0 = ×
 export const RATING = { SKIP: 0, PARTIAL: 1, DONE: 2 };
@@ -17,22 +17,37 @@ const RATING_VALUES = Object.values(RATING);
 
 const IF_THEN_MAX = 60;
 const TAG_MAX = 20;
+const STAGE_LABEL_MAX = 40;
+const STAGE_GOAL_MAX = 120;
+const METRIC_LABEL_MAX = 20;
+const METRIC_UNIT_MAX = 8;
+
+// 記録項目の種類。number は 0 以上の数値、time は 'HH:MM'（24 時間表記）。
+export const METRIC_KIND = { NUMBER: 'number', TIME: 'time' };
+
+const METRIC_KINDS = Object.values(METRIC_KIND);
+const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function createDB() {
   return { schemaVersion: SCHEMA_VERSION, habits: [], logs: [] };
 }
 
-export function createHabit({ name, started_on, order, ifThen }) {
+export function createHabit({ name, started_on, order, ifThen, stage, metrics }) {
   return {
     id: crypto.randomUUID(),
     name: trimText(name),
     started_on,
     order,
     ifThen: normalizeIfThen(ifThen),
+    stage: normalizeStage(stage),
+    metrics: normalizeMetrics(metrics),
   };
 }
 
-export function createLog({ habit_id, date, rating, action, blockerTags, blockerNote, fix }) {
+// stage は「ログを最初に作った時点のレベル名」の写し。習慣側の stage.label を渡す。
+export function createLog({
+  habit_id, date, rating, action, blockerTags, blockerNote, fix, stage, values,
+}) {
   return {
     id: crypto.randomUUID(),
     habit_id,
@@ -43,7 +58,40 @@ export function createLog({ habit_id, date, rating, action, blockerTags, blocker
     blockerTags: normalizeTags(blockerTags),
     blockerNote: optionalText(blockerNote),
     fix: optionalText(fix),
+    stage: optionalText(stage),
+    values: normalizeValues(values),
   };
+}
+
+export function createMetric({ label, kind, unit, active }) {
+  return normalizeMetric({ id: crypto.randomUUID(), label, kind, unit, active });
+}
+
+export function normalizeStage(stage) {
+  const source = isPlainObject(stage) ? stage : {};
+  return { label: optionalText(source.label), goal: optionalText(source.goal) };
+}
+
+// id が無い項目には新しく振る。編集画面は追加した行を id なしで渡せばよい。
+// オブジェクトでない要素はそのまま残して検証側に判断を渡す。
+export function normalizeMetrics(metrics) {
+  if (!Array.isArray(metrics)) return metrics === undefined || metrics === null ? [] : metrics;
+  return metrics.map((metric) => (isPlainObject(metric) ? normalizeMetric(metric) : metric));
+}
+
+function normalizeMetric(metric) {
+  return {
+    id: metric.id === undefined || metric.id === null ? crypto.randomUUID() : metric.id,
+    label: trimText(metric.label),
+    kind: metric.kind,
+    // 時刻に単位は無い。入力が残っていても持たない。
+    unit: metric.kind === METRIC_KIND.TIME ? '' : optionalText(metric.unit),
+    active: metric.active === undefined ? true : metric.active,
+  };
+}
+
+function normalizeValues(values) {
+  return values === undefined || values === null ? {} : values;
 }
 
 export function normalizeIfThen(ifThen) {
@@ -111,6 +159,52 @@ export function validateHabit(habit, path = 'habit') {
       }
     }
   }
+
+  if (!isPlainObject(habit.stage)) {
+    errors.push(`${path}.stage: オブジェクトが必要です`);
+  } else {
+    for (const [field, max] of [['label', STAGE_LABEL_MAX], ['goal', STAGE_GOAL_MAX]]) {
+      const value = habit.stage[field];
+      if (typeof value !== 'string') {
+        errors.push(`${path}.stage.${field}: 文字列が必要です（空文字は可）`);
+      } else if (value.length > max) {
+        errors.push(`${path}.stage.${field}: ${max} 文字以内にしてください`);
+      }
+    }
+  }
+
+  if (!Array.isArray(habit.metrics)) {
+    errors.push(`${path}.metrics: 配列が必要です`);
+  } else {
+    const seen = new Set();
+    habit.metrics.forEach((metric, index) => {
+      const at = `${path}.metrics[${index}]`;
+      if (!isPlainObject(metric)) {
+        errors.push(`${at}: オブジェクトではありません`);
+        return;
+      }
+      if (!isNonEmptyString(metric.id)) {
+        errors.push(`${at}.id: 空でない文字列が必要です`);
+      } else {
+        if (seen.has(metric.id)) errors.push(`${at}.id: id が重複しています: ${metric.id}`);
+        seen.add(metric.id);
+      }
+      if (!isNonEmptyString(metric.label)) {
+        errors.push(`${at}.label: 空でない文字列が必要です`);
+      } else if (metric.label.length > METRIC_LABEL_MAX) {
+        errors.push(`${at}.label: ${METRIC_LABEL_MAX} 文字以内にしてください`);
+      }
+      if (!METRIC_KINDS.includes(metric.kind)) {
+        errors.push(`${at}.kind: ${METRIC_KINDS.join(' / ')} のいずれかが必要です`);
+      }
+      if (typeof metric.unit !== 'string') {
+        errors.push(`${at}.unit: 文字列が必要です（空文字は可）`);
+      } else if (metric.unit.length > METRIC_UNIT_MAX) {
+        errors.push(`${at}.unit: ${METRIC_UNIT_MAX} 文字以内にしてください`);
+      }
+      if (typeof metric.active !== 'boolean') errors.push(`${at}.active: true か false が必要です`);
+    });
+  }
   return result(errors);
 }
 
@@ -133,9 +227,23 @@ export function validateLog(log, path = 'log') {
   if (!RATING_VALUES.includes(log.rating)) {
     errors.push(`${path}.rating: ${RATING_VALUES.join(' / ')} のいずれかが必要です`);
   }
-  for (const field of ['action', 'blockerNote', 'fix']) {
+  for (const field of ['action', 'blockerNote', 'fix', 'stage']) {
     if (typeof log[field] !== 'string') {
       errors.push(`${path}.${field}: 文字列が必要です（空文字は可）`);
+    }
+  }
+  if (typeof log.stage === 'string' && log.stage.length > STAGE_LABEL_MAX) {
+    errors.push(`${path}.stage: ${STAGE_LABEL_MAX} 文字以内にしてください`);
+  }
+
+  // ここで見るのは値の形だけ。どの項目の値かは習慣が要るので validateLogValues が見る。
+  if (!isPlainObject(log.values)) {
+    errors.push(`${path}.values: オブジェクトが必要です`);
+  } else {
+    for (const [key, value] of Object.entries(log.values)) {
+      if (!isMetricNumber(value) && !isMetricTime(value)) {
+        errors.push(`${path}.values.${key}: 0 以上の数値か 'HH:MM' 形式の時刻が必要です`);
+      }
     }
   }
 
@@ -159,8 +267,38 @@ export function validateLog(log, path = 'log') {
   return result(errors);
 }
 
+// ログの values を、その習慣の記録項目と突き合わせる。エラーの配列を返す。
+// 項目を消したり種類を変えたりして、過去の値が宙に浮くのを防ぐ。
+// 使用終了（active: false）の項目の値は残してよい。
+export function validateLogValues(log, habit, path = 'log') {
+  if (!isPlainObject(log) || !isPlainObject(log.values)) return [];
+  const metrics = isPlainObject(habit) && Array.isArray(habit.metrics) ? habit.metrics : [];
+  const kinds = new Map(metrics.filter(isPlainObject).map((metric) => [metric.id, metric.kind]));
+
+  const errors = [];
+  for (const [key, value] of Object.entries(log.values)) {
+    const at = `${path}.values.${key}`;
+    if (!kinds.has(key)) {
+      errors.push(`${at}: 習慣に無い記録項目です`);
+    } else if (kinds.get(key) === METRIC_KIND.NUMBER && !isMetricNumber(value)) {
+      errors.push(`${at}: 0 以上の数値が必要です`);
+    } else if (kinds.get(key) === METRIC_KIND.TIME && !isMetricTime(value)) {
+      errors.push(`${at}: 'HH:MM' 形式の時刻が必要です`);
+    }
+  }
+  return errors;
+}
+
+function isMetricNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isMetricTime(value) {
+  return typeof value === 'string' && TIME_OF_DAY.test(value);
+}
+
 // 保存データを現行スキーマに引き上げる。副作用のない変換で、
-// 読み書きは storage.js が受け持つ。
+// 読み書きは storage.js が受け持つ。v1 も v2 も同じ処理で現行まで上がる。
 export function migrateDB(db) {
   if (!isPlainObject(db)) return db;
 
@@ -173,7 +311,12 @@ function migrateHabit(habit) {
   if (!isPlainObject(habit)) return habit;
   // archived は廃止。休止中だった習慣も削除せず、通常の習慣として残す。
   const { archived, ...rest } = habit;
-  return { ...rest, ifThen: normalizeIfThen(habit.ifThen) };
+  return {
+    ...rest,
+    ifThen: normalizeIfThen(habit.ifThen),
+    stage: normalizeStage(habit.stage),
+    metrics: normalizeMetrics(habit.metrics),
+  };
 }
 
 function migrateLog(log) {
@@ -184,6 +327,8 @@ function migrateLog(log) {
     ...rest,
     blockerTags: normalizeTags(log.blockerTags),
     blockerNote: typeof log.blockerNote === 'string' ? log.blockerNote : optionalText(blocker),
+    stage: optionalText(log.stage),
+    values: normalizeValues(log.values),
   };
 }
 
@@ -201,12 +346,14 @@ export function validateDB(db) {
 
   const errors = [];
   const habitIds = new Set();
+  const habitsById = new Map();
   db.habits.forEach((habit, index) => {
     const path = `db.habits[${index}]`;
     errors.push(...validateHabit(habit, path).errors);
     if (!isPlainObject(habit) || !isNonEmptyString(habit.id)) return;
     if (habitIds.has(habit.id)) errors.push(`${path}.id: id が重複しています: ${habit.id}`);
     habitIds.add(habit.id);
+    habitsById.set(habit.id, habit);
   });
 
   const logIds = new Set();
@@ -221,6 +368,9 @@ export function validateDB(db) {
     }
     if (isNonEmptyString(log.habit_id) && !habitIds.has(log.habit_id)) {
       errors.push(`${path}.habit_id: 存在しない習慣を参照しています: ${log.habit_id}`);
+    }
+    if (habitsById.has(log.habit_id)) {
+      errors.push(...validateLogValues(log, habitsById.get(log.habit_id), path));
     }
     // (habit_id, date) は一意。1 つの習慣につき 1 日 1 件。
     const key = JSON.stringify([log.habit_id, log.date]);

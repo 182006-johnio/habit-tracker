@@ -14,13 +14,16 @@ import {
   createLog,
   migrateDB,
   normalizeIfThen,
+  normalizeMetrics,
+  normalizeStage,
   validateHabit,
   validateLog,
+  validateLogValues,
   validateDB,
 } from './schema.js';
 
 const DEFAULT_STORAGE_KEY = 'habitTracker.v1';
-const PATCHABLE_HABIT_FIELDS = ['name', 'started_on', 'order', 'ifThen'];
+const PATCHABLE_HABIT_FIELDS = ['name', 'started_on', 'order', 'ifThen', 'stage', 'metrics'];
 
 let storageKey = DEFAULT_STORAGE_KEY;
 let db = null; // メモリ上の唯一の正。commit() 以外から書き換えない。
@@ -108,9 +111,11 @@ export async function getHabit(id) {
   return habit ? clone(habit) : null;
 }
 
-export async function addHabit({ name, started_on, ifThen }) {
+export async function addHabit({ name, started_on, ifThen, stage, metrics }) {
   const state = requireInit();
-  const habit = createHabit({ name, started_on, ifThen, order: nextOrder(state.habits) });
+  const habit = createHabit({
+    name, started_on, ifThen, stage, metrics, order: nextOrder(state.habits),
+  });
   assertValid(validateHabit(habit), '習慣');
   commit({ ...state, habits: [...state.habits, habit] });
   return clone(habit);
@@ -133,7 +138,22 @@ export async function updateHabit(id, patch) {
   const updated = { ...current, ...patch };
   if (typeof updated.name === 'string') updated.name = updated.name.trim();
   if ('ifThen' in patch) updated.ifThen = normalizeIfThen(patch.ifThen);
+  if ('stage' in patch) updated.stage = normalizeStage(patch.stage);
+  if ('metrics' in patch) updated.metrics = normalizeMetrics(patch.metrics);
   assertValid(validateHabit(updated), '習慣');
+
+  // 値を持つログがある記録項目は、消すことも種類を変えることもできない。
+  // 過去の値が宙に浮くため。使わなくなった項目は active を false にする。
+  if ('metrics' in patch) {
+    const orphaned = state.logs
+      .filter((log) => log.habit_id === id)
+      .flatMap((log) => validateLogValues(log, updated, log.date));
+    if (orphaned.length > 0) {
+      throw new StorageError(
+        `記録済みの値がある項目は、削除も種類の変更もできません。使用終了にしてください。\n${describe(orphaned)}`,
+      );
+    }
+  }
   commit({ ...state, habits: replaceHabit(state.habits, updated) });
   return clone(updated);
 }
@@ -179,14 +199,31 @@ export async function getLogsInRange(habit_id, from, to) {
 //
 // started_on より前の日付や未来の日付も受け付ける。判定ロジック側が started_on 以前を
 // 対象外として扱うため、ここで弾く必要がない。
-export async function putLog({ habit_id, date, rating, action, blockerTags, blockerNote, fix }) {
+//
+// values を省略すると既存ログの値を引き継ぐ。ホームのカードで ○△× だけ付け替えたときに
+// 数値を消さないため。消したいときは {} を渡す。
+export async function putLog({
+  habit_id, date, rating, action, blockerTags, blockerNote, fix, values,
+}) {
   const state = requireInit();
-  if (!state.habits.some((habit) => habit.id === habit_id)) {
+  const habit = state.habits.find((candidate) => candidate.id === habit_id);
+  if (!habit) {
     throw new StorageError(`習慣が見つかりません: ${String(habit_id)}`);
   }
 
   const existing = state.logs.find((log) => log.habit_id === habit_id && log.date === date);
-  const log = createLog({ habit_id, date, rating, action, blockerTags, blockerNote, fix });
+  const log = createLog({
+    habit_id,
+    date,
+    rating,
+    action,
+    blockerTags,
+    blockerNote,
+    fix,
+    // レベル名はログを最初に作った時点のものを残す。書き直しでは変えない。
+    stage: existing ? existing.stage : habit.stage.label,
+    values: values === undefined && existing ? existing.values : values,
+  });
   if (existing) {
     log.id = existing.id;
     // 達成度が同じなら記録日時を据え置く。recorded_at は「その日をどう判断したか」を
@@ -195,6 +232,7 @@ export async function putLog({ habit_id, date, rating, action, blockerTags, bloc
     if (log.rating === existing.rating) log.recorded_at = existing.recorded_at;
   }
   assertValid(validateLog(log), 'ログ');
+  assertValid(result(validateLogValues(log, habit, 'log')), 'ログ');
 
   const logs = existing
     ? state.logs.map((candidate) => (candidate.id === existing.id ? log : candidate))
@@ -337,6 +375,10 @@ function isPlainObject(value) {
 // 内部状態を呼び出し側から書き換えられないよう、読み出しはコピーを返す。
 function clone(value) {
   return structuredClone(value);
+}
+
+function result(errors) {
+  return { ok: errors.length === 0, errors };
 }
 
 function assertValid({ ok, errors }, label) {
