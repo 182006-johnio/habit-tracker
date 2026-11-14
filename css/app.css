@@ -992,7 +992,11 @@ dialog menu button {
    中の文字は iOS 標準の中央寄せのままにする（2026-11-14、本人の希望）。 */
 .text-input[type="date"],
 .text-input[type="time"] {
-  display: block;
+  /* iOS はこの欄を中身を縦中央に置く flex として描く。block にすると文字が上に寄るので、
+     幅を親に合わせつつ（flex はブロックと同じく横幅いっぱい）縦中央を保つ。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   max-width: 100%;
   -webkit-appearance: none;
@@ -1009,6 +1013,9 @@ dialog menu button {
 
 .text-input[type="date"]::-webkit-date-and-time-value,
 .text-input[type="time"]::-webkit-date-and-time-value {
+  /* 欄いっぱいに広げてから中央に寄せる。広げないと中身の幅しか持たず、寄せが効かない。 */
+  flex: 1;
+  margin: 0;
   text-align: center;
 }
 
@@ -1400,6 +1407,7 @@ dialog menu button {
 
 .metric-input[type="time"] {
   width: 7.5rem;
+  justify-content: flex-end;
 }
 
 /* 数値の欄と同じく右に寄せる。 */
