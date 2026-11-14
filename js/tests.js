@@ -1272,6 +1272,85 @@ test('書き出す JSON は snapshot そのままで、余計な項目を足さ�
   assertEqual(Object.keys(parsed).sort(), ['habits', 'logs', 'schemaVersion'], 'トップレベルのキー');
 });
 
+// v3 の項目（レベル・記録項目・値）を持つ保存データを作る。
+async function storeWithMetrics() {
+  await freshStore();
+  const habit = await storage.addHabit({
+    name: '超体力',
+    started_on: '2026-08-01',
+    stage: { label: 'Lv4 起床時刻の固定', goal: '7日中5日、±30分以内' },
+    metrics: [COUNT, WAKE, { id: 'm-old', label: '昔の項目', kind: 'number', unit: '', active: false }],
+  });
+  await storage.putLog({
+    habit_id: habit.id, date: '2026-08-01', rating: schema.RATING.DONE,
+    values: { 'm-count': 2.5, 'm-wake': '06:30', 'm-old': 0 },
+  });
+  await storage.putLog({ habit_id: habit.id, date: '2026-08-02', rating: schema.RATING.SKIP });
+  return habit;
+}
+
+test('書き出した JSON は schemaVersion 3 で、レベル・記録項目・値を含む', async () => {
+  const habit = await storeWithMetrics();
+  const parsed = JSON.parse(backup.serializeBackup(await storage.snapshot()));
+
+  assertEqual(parsed.schemaVersion, 3, 'schemaVersion');
+  assertEqual(parsed.habits[0].stage, habit.stage, 'stage');
+  assertEqual(parsed.habits[0].metrics, habit.metrics, 'metrics（使用終了の項目も含む）');
+  assertEqual(parsed.logs[0].stage, 'Lv4 起床時刻の固定', 'ログのレベル名');
+  assertEqual(parsed.logs[0].values, { 'm-count': 2.5, 'm-wake': '06:30', 'm-old': 0 }, 'values');
+  assertEqual(parsed.logs[1].values, {}, '値の無いログは空の values');
+});
+
+test('書き出したファイルを読み込むと、記録項目と値がそのまま戻る', async () => {
+  await storeWithMetrics();
+  const before = await storage.snapshot();
+  const text = backup.serializeBackup(before);
+
+  // 別の中身に入れ替えてから読み戻す
+  await freshStore();
+  await storage.addHabit({ name: '消える習慣', started_on: '2026-08-01' });
+
+  const incoming = await storage.parseBackup(text);
+  assertEqual([incoming.habits, incoming.logs], [1, 2], '件数');
+  await storage.replaceAll(incoming.db);
+
+  assertEqual(await storage.snapshot(), before, '書き出す前と同じ内容に戻る');
+
+  // 読み戻したあとも、記録項目つきの保存が通る
+  const [habit] = await storage.getHabits();
+  const log = await storage.putLog({
+    habit_id: habit.id, date: '2026-08-03', rating: schema.RATING.DONE, values: { 'm-count': 1 },
+  });
+  assertEqual(log.values, { 'm-count': 1 }, '読み戻した項目に値を付けられる');
+});
+
+test('parseBackup は記録項目と合わない値を持つファイルを拒否する', async () => {
+  await storeWithMetrics();
+  const data = await storage.snapshot();
+  const broken = (edit) => {
+    const copy = structuredClone(data);
+    edit(copy);
+    return JSON.stringify(copy);
+  };
+
+  await assertThrows(
+    () => storage.parseBackup(broken((db) => { db.habits[0].metrics = []; })),
+    '項目を消して値だけ残したファイル',
+  );
+  await assertThrows(
+    () => storage.parseBackup(broken((db) => { db.logs[0].values['m-wake'] = 630; })),
+    '時刻の項目に数値',
+  );
+  await assertThrows(
+    () => storage.parseBackup(broken((db) => { db.habits[0].metrics[0].kind = 'text'; })),
+    '知らない種類の項目',
+  );
+  await assertThrows(
+    () => storage.parseBackup(broken((db) => { delete db.logs[0].values; })),
+    'v3 なのに values が無い',
+  );
+});
+
 test('canUseShare は navigator の能力で判定する', () => {
   const file = new File(['{}'], 'x.json', { type: 'application/json' });
   const share = () => {};
