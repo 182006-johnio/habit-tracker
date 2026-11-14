@@ -989,7 +989,7 @@ dialog menu button {
 
 /* iOS の Safari は日付・時刻の入力欄に独自の最小幅を持たせるので、width: 100% でも
    親からはみ出す。標準の見た目を外して、ほかの入力欄と同じ幅に収める。
-   中の文字は中央寄せになるので、ほかの欄に合わせて左に寄せる。 */
+   中の文字は iOS 標準の中央寄せのままにする（2026-11-14、本人の希望）。 */
 .text-input[type="date"],
 .text-input[type="time"] {
   display: block;
@@ -1009,7 +1009,7 @@ dialog menu button {
 
 .text-input[type="date"]::-webkit-date-and-time-value,
 .text-input[type="time"]::-webkit-date-and-time-value {
-  text-align: left;
+  text-align: center;
 }
 
 .panel {
