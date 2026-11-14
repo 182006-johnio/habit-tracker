@@ -6,6 +6,7 @@
 import * as backup from './export.js';
 import * as dates from './dates.js';
 import { formatIfThen } from './ui/if-then.js';
+import * as report from './report.js';
 import * as schema from './schema.js';
 import * as stats from './stats.js';
 import * as storage from './storage.js';
@@ -1041,6 +1042,36 @@ test('metricSummary は範囲外を除き、rating を見ず、小数の誤差�
 test('metricSummary は記録項目の無い習慣で空を返し、不正な期間を拒否する', async () => {
   assertEqual(stats.metricSummary(makeHabit(), [], weekDay(1), weekDay(7)), [], '項目なし');
   await assertThrows(() => stats.metricSummary(makeHabit(), [], 'x', weekDay(7)), '不正な from');
+});
+
+// --- report（値と集計の書き方） -----------------------------------------
+
+test('formatMetricValue は未入力と 0 を書き分け、小数を 2 桁に丸める', () => {
+  assertEqual(
+    [null, 0, 5, 3.5, 3.6666667, 125.5, '06:30'].map(report.formatMetricValue),
+    ['–', '0', '5', '3.5', '3.67', '125.5', '06:30'],
+    '値の表記',
+  );
+});
+
+test('formatMetricName は単位があるときだけ括弧で添える', () => {
+  assertEqual(report.formatMetricName(COUNT), 'トリガー回数（回）', '単位あり');
+  assertEqual(report.formatMetricName(WAKE), '起床時刻', '単位なし');
+});
+
+test('formatMetricTotals は数値で合計・平均・記録日数、時刻と空では記録日数だけ', () => {
+  assertEqual(
+    report.formatMetricTotals({ metric: COUNT, sum: 22, average: 3.6666667, count: 6 }),
+    '合計 22回・平均 3.67回・記録 6日',
+    '数値',
+  );
+  assertEqual(
+    report.formatMetricTotals({ metric: { ...COUNT, unit: '' }, sum: 9, average: 3, count: 3 }),
+    '合計 9・平均 3・記録 3日',
+    '単位なし',
+  );
+  assertEqual(report.formatMetricTotals({ metric: WAKE, sum: null, average: null, count: 2 }), '記録 2日', '時刻');
+  assertEqual(report.formatMetricTotals({ metric: COUNT, sum: 0, average: null, count: 0 }), '記録 0日', '値なし');
 });
 
 // --- weeks（カレンダー週） ----------------------------------------------

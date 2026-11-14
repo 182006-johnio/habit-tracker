@@ -7,7 +7,8 @@
 // 取れないが（390px の画面に入らない）、高さは 44px 取り、過去の日を直す経路は残す。
 
 import { addDays, formatMonthDay, startOfWeek, todayISO } from '../dates.js';
-import { blockerRanking, isActiveDay } from '../stats.js';
+import { formatMetricName, formatMetricTotals, formatMetricValue } from '../report.js';
+import { blockerRanking, isActiveDay, metricSummary } from '../stats.js';
 import * as storage from '../storage.js';
 import { buildWeek, endOfWeek } from '../weeks.js';
 import { dotKind } from './marks.js';
@@ -49,6 +50,7 @@ export async function renderWeek(root, header, weekStart) {
   root.append(...[
     table(habits, logsByHabit, start, today),
     blockerCard(db.logs, start, end),
+    ...metricCards(habits, logsByHabit, start, end),
     pastWeeks(habits, logsByHabit, start, today, first),
   ].filter((section) => section !== null));
 }
@@ -295,6 +297,73 @@ function blockerRow(tag, count, max) {
 
   row.append(name, track, number);
   return row;
+}
+
+// --- 記録項目の集計 ------------------------------------------------------
+
+// 記録項目を持つ習慣ごとに 1 枚。項目が無い習慣は出さない。
+// 合否は判定しない。合格条件のメモと数字を並べて、本人が見比べる。
+function metricCards(habits, logsByHabit, start, end) {
+  const cards = [];
+  for (const habit of habits) {
+    const summaries = metricSummary(habit, logsByHabit.get(habit.id) ?? [], start, end);
+    if (summaries.length > 0) cards.push(metricCard(habit, summaries));
+  }
+  return cards;
+}
+
+function metricCard(habit, summaries) {
+  const card = document.createElement('section');
+  card.className = 'metric-card';
+
+  const title = document.createElement('h2');
+  title.className = 'card-title';
+  title.textContent = habit.name;
+  card.append(title);
+
+  const label = habit.stage.label.trim();
+  const goal = habit.stage.goal.trim();
+  if (label !== '' || goal !== '') {
+    const stage = document.createElement('div');
+    stage.className = 'metric-card-stage';
+    if (label !== '') stage.append(textBlock('div', 'metric-card-level', label));
+    if (goal !== '') stage.append(textBlock('p', 'metric-card-goal', goal));
+    card.append(stage);
+  }
+
+  for (const summary of summaries) {
+    card.append(metricBlock(summary));
+  }
+  return card;
+}
+
+function metricBlock(summary) {
+  const block = document.createElement('div');
+  block.className = 'metric-summary';
+  block.append(textBlock('div', 'metric-summary-name', formatMetricName(summary.metric)));
+
+  const days = document.createElement('div');
+  days.className = 'metric-days';
+  summary.days.forEach((value, index) => {
+    const cell = document.createElement('div');
+    cell.className = 'metric-day';
+    cell.append(
+      textBlock('span', 'metric-day-label', WEEKDAY_LABELS[index]),
+      textBlock('span', value === null ? 'metric-day-value blank' : 'metric-day-value', formatMetricValue(value)),
+    );
+    days.append(cell);
+  });
+  block.append(days);
+
+  block.append(textBlock('p', 'metric-summary-total', formatMetricTotals(summary)));
+  return block;
+}
+
+function textBlock(tag, className, text) {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
 }
 
 // --- 過去の週 -----------------------------------------------------------
