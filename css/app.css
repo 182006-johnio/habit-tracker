@@ -997,6 +997,13 @@ dialog menu button {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 高さを固定せず、上下に同じ余白を取って中身を挟む。iOS が中の文字をどう置いても
+     上下の余白が等しくなる。枠 1.5px × 2 + 余白 10px × 2 + 行 約25px = 48px。 */
+  height: auto;
+  min-height: 48px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  line-height: 1.5;
   min-width: 0;
   max-width: 100%;
   -webkit-appearance: none;
@@ -1016,6 +1023,9 @@ dialog menu button {
   /* 欄いっぱいに広げてから中央に寄せる。広げないと中身の幅しか持たず、寄せが効かない。 */
   flex: 1;
   margin: 0;
+  padding: 0;
+  min-height: 0;
+  line-height: 1.5;
   text-align: center;
 }
 
